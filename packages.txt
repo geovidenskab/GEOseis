@@ -1,0 +1,10 @@
+build-essential
+gfortran
+liblapack-dev
+libblas-dev
+libproj-dev
+proj-data
+proj-bin
+libgeos-dev
+libffi-dev
+libssl-dev

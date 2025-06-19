@@ -1,0 +1,12 @@
+# requirements.txt - Minimal version for fast deployment
+
+streamlit
+obspy
+pandas
+numpy
+plotly
+folium
+streamlit-folium
+scipy
+xlsxwriter
+requests
