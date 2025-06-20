@@ -1,4 +1,4 @@
-# GEOseis.py v. 3.2.
+# GEOseis.py v. 3.2. 20. juni 2025
 """
 Streamlined Professional Seismic Analysis Platform
 ====================================================================================
@@ -1453,7 +1453,7 @@ class StreamlinedDataManager:
         
         return earthquakes
     
-    def find_stations_for_earthquake(self, earthquake, min_distance_km=800, max_distance_km=2200, target_stations=4):
+    def find_stations_for_earthquake(self, earthquake, min_distance_km=800, max_distance_km=2200, target_stations=5):
         """
         Finder optimal stationer til seismisk analyse med intelligent udvælgelse.
         
@@ -1464,7 +1464,7 @@ class StreamlinedDataManager:
             earthquake (dict): Jordskælv metadata
             min_distance_km (int): Minimum afstand - undgår direkte bølger (default: 800)
             max_distance_km (int): Maksimum afstand - før core shadow zone (default: 2200)
-            target_stations (int): Ønsket antal stationer (default: 4)
+            target_stations (int): Ønsket antal stationer (default: 5)
             
         Returns:
             list: Liste af optimerede station dictionaries med ankomsttider
@@ -1863,6 +1863,7 @@ class StreamlinedDataManager:
                         used_channels = channels
                         sample_rate = waveform[0].stats.sampling_rate
                         progress.success(f"✅ Data hentet ({sample_rate} Hz)")
+                        progress.success(f"Se analyse nedenfor...")
                         break  # Stop ved første succesfulde download
                         
                 except Exception:
@@ -2264,7 +2265,7 @@ class StreamlinedSeismicApp:
             st.caption("""
             **FEATURES:**
             - Real-time jordskælv data fra IRIS  
-            - Professionel signal processering  
+            - Omfattende filtrering og analyse
             - Ms magnitude beregning  
             - Interaktive visualiseringer  
             - Excel eksport til undervisningen
@@ -2281,7 +2282,8 @@ class StreamlinedSeismicApp:
             """)
             
             st.markdown("---")
-            st.caption("🌍 **Udviklet af:** Philip Kruse Jakobsen")
+            st.caption("🌍 **Udviklet af: Philip Kruse Jakobsen** ")
+            st.caption("Kontakt: pj@sg.dk")
 
     
     def setup_session_state(self):
@@ -2430,7 +2432,11 @@ class StreamlinedSeismicApp:
                 location=[center_lat, center_lon],
                 zoom_start=zoom_start,
                 tiles='Esri_WorldImagery',
-                attr=' '
+                attr=' ',
+                zoom_control=False,  # Fjerner +/- knapper
+                scrollWheelZoom=True,  # Behold mouse wheel zoom
+                doubleClickZoom=True,  # Behold double-click zoom
+                dragging=True  # Behold drag funktionalitet
             )
             
             # Anvend bounds for stationer
@@ -2469,7 +2475,11 @@ class StreamlinedSeismicApp:
                 location=[center_lat, center_lon],
                 zoom_start=zoom_start,
                 tiles='Esri_WorldImagery',
-                attr=' '
+                attr=' ',
+                zoom_control=False,  # Fjerner +/- knapper
+                scrollWheelZoom=True,  # Behold mouse wheel zoom
+                doubleClickZoom=True,  # Behold double-click zoom
+                dragging=True  # Behold drag funktionalitet
             )
         
         # Tilføj jordskælv markører med stjerne for valgt jordskælv
@@ -2501,7 +2511,7 @@ class StreamlinedSeismicApp:
                         icon_anchor=((radius + 15)//2, (radius + 15)//2)
                     ),
                     tooltip=f"✅ VALGT: M{eq['magnitude']:.1f} - {eq['time'].strftime('%d %b %Y')}",
-                    popup=f"⭐ VALGT JORDSKÆLV ⭐<br>M {eq['magnitude']:.1f}<br>{eq['time'].strftime('%d %b %Y %H:%M')}<br>Lat: {eq['latitude']:.2f}, Lon: {eq['longitude']:.2f}"
+                    popup=f"⭐ VALGT JORDSKÆLV ⭐<br>M {eq['magnitude']:.1f}{eq['time'].strftime('%d %b %Y %H:%M')}"
                 ).add_to(m)
                 
             else:
@@ -2560,7 +2570,7 @@ class StreamlinedSeismicApp:
                 
                 # Tooltip med data kvalitets information
                 source_info = station.get('data_source', 'UNKNOWN')
-                tooltip_text = f"Station {station_id}: {station['network']}.{station['station']} ({station['distance_km']:.0f} km)"
+                tooltip_text = f"Station {station_id}: {station['network']}.{station['station']} ({station['distance_km']:.0f} km)<br> - klik på listen til højre -"
                 if source_info == 'IRIS_INVENTORY':
                     tooltip_text += " ✅ IRIS Verified"
                 elif source_info == 'FALLBACK_LIST':
@@ -2576,6 +2586,49 @@ class StreamlinedSeismicApp:
                     ),
                     tooltip=tooltip_text
                 ).add_to(m)
+        
+        # DYNAMISK TITEL BASERET PÅ TILSTAND
+        antal_jordskælv = len(earthquakes_df)
+        magnitude_threshold = st.session_state.get('magnitude_threshold', 6.5)
+        selected_eq = st.session_state.get('selected_earthquake')
+
+        # BESTEM TITEL BASERET PÅ TILSTAND
+        if selected_eq and stations and st.session_state.get('show_stations', False):
+            # TILSTAND: Jordskælv valgt + stationer vises
+            eq_mag = selected_eq['magnitude']
+            eq_date = selected_eq['time'].strftime('%d %b %Y')
+            antal_stationer = len(stations)
+            
+            title_text = f"🌍 Valgt jordskælv: M{eq_mag:.1f} - {eq_date} "
+            
+        else:
+            # TILSTAND: Standard oversigt
+            title_text = f"🌍 De nyeste {antal_jordskælv} jordskælv med M>{magnitude_threshold}"
+
+        # DIN SAMME STYLING
+        title_html = f'''
+        <div style="
+            position: fixed;
+            top: 20px;
+            left: 20%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.42);
+            border-radius: 10px;
+            padding: 5px 10px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+            z-index: 9999;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 15px;
+            color: #2c3e50;
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.1);
+        ">
+        <strong>{title_text}</strong>
+        </div>
+        '''
+
+        m.get_root().html.add_child(folium.Element(title_html))   
+        
         
         # Tilføj professionel magnitude legend - EFTER kort er færdigt
         legend_html = '''
@@ -2781,12 +2834,12 @@ class StreamlinedSeismicApp:
                 st.markdown("**🟢 Analyse klar**")
             elif st.session_state.get('selected_earthquake'):
                 selected_eq = st.session_state.get('selected_earthquake')
-                st.markdown(f"**🟡 M{selected_eq['magnitude']:.1f} - {selected_eq['time'].strftime('%d %b %Y')} | {selected_eq['depth_km']:.1f} km dybde**")
+                st.markdown(f"**⭐ M{selected_eq['magnitude']:.1f} - {selected_eq['time'].strftime('%d %b %Y')} | {selected_eq['depth_km']:.1f} km dybde**")
                 st.markdown("**Vælg en analyse-klar station:**")
             else:
                 st.markdown("**🔴 Klik på et jordskælv på kortet**")
             
-            st.markdown("---")
+            #st.markdown("---")
             
             # Station selection interface (kun vis når relevant)
             selected_eq = st.session_state.get('selected_earthquake')
@@ -2798,11 +2851,6 @@ class StreamlinedSeismicApp:
                 iris_verified = sum(1 for s in stations if s.get('data_source') == 'IRIS_INVENTORY')
                 fallback_count = len(stations) - iris_verified
                 
-                st.info(f"🎯 **{len(stations)} analyse-klar stationer** (800-2200 km)")
-                if iris_verified > 0:
-                    st.success(f"✅ {iris_verified} IRIS verificerede")
-                if fallback_count > 0:
-                    st.info(f"ℹ️ {fallback_count} fallback stationer")
                 
                 # Station selection knapper med kvalitets indikatorer
                 for i, station in enumerate(stations):
@@ -2844,6 +2892,12 @@ class StreamlinedSeismicApp:
                             else:
                                 st.error("❌ Ingen data kunne hentes")
                                 st.session_state.selected_station = None
+                                #st.info(f"🎯 **{len(stations)} analyse-klar stationer** (800-2200 km)")
+                if iris_verified > 0:
+                    st.success(f"✅ {iris_verified} IRIS verificerede")
+                if fallback_count > 0:
+                    st.info(f"ℹ️ {fallback_count} fallback stationer")
+                
             else:
                 if selected_eq:
                     st.info("🔍 Ingen analyse-klar stationer fundet for dette jordskælv")
@@ -2914,7 +2968,7 @@ class StreamlinedSeismicApp:
         if not all([selected_eq, selected_station, waveform_data]):
             return
         
-        st.markdown("---")
+        #st.markdown("---")
         st.markdown(f"**📈 Analyse: {selected_station['network']}.{selected_station['station']}**")
         
         # Vis kun timing problemer hvis de eksisterer
