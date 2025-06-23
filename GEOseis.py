@@ -1,4 +1,4 @@
-# GEOseis.py v. 3.2. 20. juni 2025
+# GEOseis.py v. 1.0
 """
 Streamlined Professional Seismic Analysis Platform
 ====================================================================================
@@ -11,7 +11,7 @@ En avanceret seismologisk analyseplatform til realtids jordskælvsanalyse med:
 - Excel eksport til videre analyse
 
 Udviklet af: Philip Kruse Jakobsen, Silkeborg Gymnasium
-Version: 3.2
+Version: 1.0
 Dato: Juni 2025
 
 Hovedklasser:
@@ -29,6 +29,10 @@ Krav:
 
 import streamlit as st
 
+st.cache_data.clear()
+st.cache_resource.clear()
+
+
 # Konfiguration af Streamlit applikation - skal være første Streamlit kommando
 st.set_page_config(
     page_title="GEOseis - seismisk analyse med Excel-export til undervisningen",
@@ -41,14 +45,14 @@ st.set_page_config(
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
+#import plotly.express as px
 import folium
 from streamlit_folium import st_folium
 from datetime import datetime, timedelta
-import json
-import time
+#import json
+#import time
 import traceback
-from scipy import signal
+#from scipy import signal
 from scipy.signal import butter, filtfilt, medfilt
 from scipy.fft import fft, fftfreq
 from io import BytesIO
@@ -130,51 +134,6 @@ class EnhancedSeismicProcessor:
         self.filter_order = 4  # Butterworth filter orden - balance mellem skarphed og stabilitet
         self.spike_threshold = 5.0  # Z-score threshold - konservativ for at undgå false positives
     
-    def get_valid_filter_bands(self, sampling_rate):
-        """
-        Beregner gyldige filterbånd baseret på data sampling rate.
-        
-        Nyquist theorem: Maksimum detektabel frekvens = sampling_rate / 2
-        For stabilitet bruges kun 80% af Nyquist frekvensen.
-        
-        Args:
-            sampling_rate (float): Data sampling frekvens i Hz
-            
-        Returns:
-            dict: Dictionary med gyldige filterbånd, justeret efter sampling rate
-            
-        Example:
-            valid_bands = processor.get_valid_filter_bands(100.0)
-            # Med 100 Hz sampling: max frekvens = 40 Hz (80% af 50 Hz Nyquist)
-        """
-        nyquist = sampling_rate / 2.0
-        max_freq = nyquist * 0.8  # Brug 80% af Nyquist for stabilitet
-        
-        valid_bands = {'raw': None}  # Raw data er altid gyldig
-        
-        # Evaluer hvert filterbånd mod sampling rate begrænsninger
-        for filter_name, band in self.filter_bands.items():
-            if filter_name == 'raw':
-                continue
-                
-            if band is None:
-                continue
-                
-            low_freq, high_freq = band
-            
-            # Juster frekvenser hvis de overstiger maksimum
-            if high_freq > max_freq:
-                if low_freq < max_freq:
-                    # Juster øvre frekvens til maksimum mulig
-                    adjusted_band = (low_freq, max_freq)
-                    valid_bands[f"{filter_name}_adj"] = adjusted_band
-                # Hvis nedre frekvens også er for høj, skip dette filter
-            else:
-                # Filter er fuldt gyldigt
-                valid_bands[filter_name] = band
-        
-        return valid_bands
-    
     def apply_bandpass_filter(self, data, sampling_rate, low_freq, high_freq, order=None):
         """
         Anvender Butterworth båndpas filter på seismiske data med forbedret validering.
@@ -245,76 +204,6 @@ class EnhancedSeismicProcessor:
             
         except Exception as e:
             warnings.warn(f"Filter fejl: {e}. Returnerer original data.")
-            return data
-    
-    def apply_highpass_filter(self, data, sampling_rate, corner_freq, order=None):
-        """
-        Anvender højpas filter til fjernelse af lave frekvenser (instrument drift).
-        
-        Højpas filtre er kritiske for at fjerne:
-        - Instrument drift og offset
-        - Meget lave frekvenser under seismisk interesse
-        - DC komponenter
-        
-        Args:
-            data (array): Input seismogram
-            sampling_rate (float): Sampling frekvens i Hz
-            corner_freq (float): Corner frekvens i Hz
-            order (int, optional): Filter orden
-            
-        Returns:
-            array: Højpas filtreret data
-        """
-        try:
-            if order is None:
-                order = self.filter_order
-                
-            nyquist = sampling_rate / 2.0
-            corner_norm = corner_freq / nyquist
-            
-            if corner_norm <= 0 or corner_norm >= 1:
-                return data
-                
-            b, a = butter(order, corner_norm, btype='high')
-            return filtfilt(b, a, data)
-            
-        except Exception as e:
-            print(f"Højpas filter fejl: {e}")
-            return data
-    
-    def apply_lowpass_filter(self, data, sampling_rate, corner_freq, order=None):
-        """
-        Anvender lavpas filter til fjernelse af høje frekvenser (instrument støj).
-        
-        Lavpas filtre fjerner:
-        - Høj-frekvens instrument støj
-        - Aliasing artifakter
-        - Elektronisk interferens
-        
-        Args:
-            data (array): Input seismogram
-            sampling_rate (float): Sampling frekvens i Hz  
-            corner_freq (float): Corner frekvens i Hz
-            order (int, optional): Filter orden
-            
-        Returns:
-            array: Lavpas filtreret data
-        """
-        try:
-            if order is None:
-                order = self.filter_order
-                
-            nyquist = sampling_rate / 2.0
-            corner_norm = corner_freq / nyquist
-            
-            if corner_norm <= 0 or corner_norm >= 1:
-                return data
-                
-            b, a = butter(order, corner_norm, btype='low')
-            return filtfilt(b, a, data)
-            
-        except Exception as e:
-            print(f"Lavpas filter fejl: {e}")
             return data
     
     def remove_spikes(self, data, threshold=None, window_size=5):
@@ -504,8 +393,7 @@ class EnhancedSeismicProcessor:
             print(f"SNR beregning fejl: {e}")
             return np.array([]), np.array([])
     
-    def process_waveform_with_filtering(self, waveform_data, filter_type='broadband', 
-                                      remove_spikes=True, calculate_noise=True):
+    def process_waveform_with_filtering(self, waveform_data, filter_type='broadband', remove_spikes=True, calculate_noise=True):
         """
         Komplet waveform processing pipeline med avanceret filtrering.
         
@@ -613,50 +501,6 @@ class EnhancedSeismicProcessor:
             
         except Exception as e:
             print(f"Waveform processing fejl: {e}")
-            return None
-    
-    def get_filter_summary(self, processed_data):
-        """
-        Genererer resumé af udførte filter operationer til brugerfeedback.
-        
-        Args:
-            processed_data (dict): Output fra process_waveform_with_filtering
-            
-        Returns:
-            dict: Opsummering af processing resultater
-        """
-        try:
-            summary = {
-                'filter_applied': processed_data.get('filter_used', 'none'),
-                'filter_params': processed_data.get('filter_params'),
-                'components_processed': list(processed_data.get('filtered_data', {}).keys()),
-                'spikes_removed': {},
-                'noise_levels': {},
-                'max_snr': {}
-            }
-            
-            # Opsummér spike fjernelse for hver komponent
-            for component, spike_info in processed_data.get('spike_info', {}).items():
-                summary['spikes_removed'][component] = {
-                    'count': spike_info.get('num_spikes', 0),
-                    'percentage': spike_info.get('spike_percentage', 0)
-                }
-            
-            # Opsummér støj niveauer
-            for component, noise_stats in processed_data.get('noise_stats', {}).items():
-                summary['noise_levels'][component] = noise_stats.get('rms', 0)
-            
-            # Find maksimale SNR værdier
-            for component, snr_data in processed_data.get('snr_data', {}).items():
-                if len(snr_data.get('snr_db', [])) > 0:
-                    summary['max_snr'][component] = np.max(snr_data['snr_db'])
-                else:
-                    summary['max_snr'][component] = None
-            
-            return summary
-            
-        except Exception as e:
-            print(f"Filter resumé fejl: {e}")
             return None
     
     def calculate_wave_arrivals(self, distance_deg, depth_km):
@@ -1256,6 +1100,7 @@ class StreamlinedDataManager:
         self.processor = EnhancedSeismicProcessor()
         self.client = None
         self.connect_to_iris()
+        
     
     def connect_to_iris(self):
         """
@@ -1283,90 +1128,86 @@ class StreamlinedDataManager:
             st.error(f"❌ Failed to connect to IRIS: {e}")
             return False
     
-    def fetch_latest_earthquakes(self, min_magnitude=6.5, limit=25):
+    # fetch_latest_earthquakes med korrekt tidslogik
+    def fetch_latest_earthquakes(self, magnitude_range=(6.0, 9.2), year_range=(2000, 2025), depth_range=(1, 750), limit=25):
         """
-        Henter seneste jordskælv fra IRIS catalog med intelligent søgestrategi.
-        
-        Implementerer progressiv søgning der starter med nylige events og
-        udvider bagud i tid indtil tilstrækkelige jordskælv findes.
-        Dette optimerer for både aktualitet og resultat kvalitet.
+        OPDATERET: Henter jordskælv med magnitude range og årstal filtrering.
+        Søger fra nutid og tilbage til start_year.
         
         Args:
-            min_magnitude (float): Minimum magnitude threshold (default: 6.5)
+            magnitude_range (tuple): (min_magnitude, max_magnitude) (default: (6.0, 8.5))
+            year_range (tuple): (start_year, end_year) årstal (default: (1990, 2025))
             limit (int): Maksimum antal jordskælv at returnere (default: 25)
-            
-        Returns:
-            list: Liste af jordskælv dictionaries med komplet metadata
-            
-        Note:
-            Søgestrategi:
-            1. Start med 30 dage tilbage (nyeste events)
-            2. Udvid progressivt til max 20 år
-            3. Stop når limit nået eller ingen flere events
-            4. Sortér efter tid (nyeste først)
-            
-        Example:
-            earthquakes = manager.fetch_latest_earthquakes(min_magnitude=7.0, limit=10)
-            for eq in earthquakes:
-                print(f"M{eq['magnitude']:.1f} - {eq['description']}")
         """
         if not self.client:
             return []
         
         try:
-            # Progressiv søgestrategi - start med nylige events
-            search_periods = [30, 90, 180, 365, 730, 1095, 1825, 2555, 3650, 5475, 7300]  # dage
-            all_earthquakes = []
-            
             progress_placeholder = st.empty()
+            min_depth_km, max_depth_km = depth_range
+            start_year, end_year = year_range
+            min_magnitude, max_magnitude = magnitude_range
             
-            # Søg progressivt bagud i tid
-            for days_back in search_periods:
-                progress_placeholder.info(f"🔍 Søger {days_back} dage tilbage...")
+            # Vis brugervenlig information
+            #progress_placeholder.info(f"🔍 Søger jordskælv M {min_magnitude:.1f}-{max_magnitude:.1f} fra {start_year} til {end_year}...")
+            
+            # RETTET: Korrekt tidslogik - fra start_year til nutid
+            from datetime import datetime
+            current_year = datetime.now().year
+            
+            # Brug den tidligste og seneste år korrekt
+            earliest_year = min(start_year, end_year)
+            latest_year = min(max(start_year, end_year), current_year)  # Ikke frem i tiden
+            
+            start_time = UTCDateTime(f"{earliest_year}-01-01T00:00:00")
+            end_time = UTCDateTime(f"{latest_year + 1}-01-01T00:00:00")  # +1 for at inkludere hele slutåret
+            
+            try:
+                # Forespørg IRIS med magnitude range og tidsperiode
+                catalog = self.client.get_events(
+                    starttime=start_time,
+                    endtime=end_time,
+                    minmagnitude=min_magnitude,
+                    maxmagnitude=max_magnitude,
+                    mindepth=min_depth_km, 
+                    maxdepth=max_depth_km, 
+                    orderby="time",
+                    limit=500
+                )
                 
-                # Definer søge tidsvindue
-                end_time = UTCDateTime.now()
-                start_time = end_time - (days_back * 86400)  # Konverter dage til sekunder
-                
-                try:
-                    # Forespørg IRIS event catalog
-                    catalog = self.client.get_events(
-                        starttime=start_time,
-                        endtime=end_time,
-                        minmagnitude=min_magnitude,
-                        orderby="time-asc",  # Tidssorteret
-                        limit=500  # Høj limit for at få alle relevante events
-                    )
+                if len(catalog) > 0:
+                    earthquakes = self._process_catalog(catalog)
+                    earthquakes.sort(key=lambda x: x['time'], reverse=True)  # Nyeste først
+                    final_earthquakes = earthquakes[:limit]
                     
-                    if len(catalog) > 0:
-                        # Processer og validér fundne events
-                        earthquakes = self._process_catalog(catalog)
-                        
-                        # Check om vi har nok events til at stoppe søgning
-                        if len(earthquakes) >= limit:
-                            earthquakes.sort(key=lambda x: x['time'], reverse=True)  # Nyeste først
-                            final_earthquakes = earthquakes[:limit]
-                            
-                            progress_placeholder.empty()
-                            return final_earthquakes
-                        else:
-                            all_earthquakes = earthquakes
-                
-                except Exception as search_error:
-                    # Fortsæt til næste søgeperiode ved fejl
-                    continue
+                    #progress_placeholder.success(f"✅ Fandt {len(final_earthquakes)} jordskælv")
+                    return final_earthquakes
+                else:
+                    progress_placeholder.warning("⚠️ Ingen jordskælv fundet i den valgte periode og magnitude range")
+                    return []
             
-            # Returner hvad vi fandt, selvom det ikke er det fulde limit
-            progress_placeholder.empty()
-            if len(all_earthquakes) > 0:
-                all_earthquakes.sort(key=lambda x: x['time'], reverse=True)
-                return all_earthquakes
-            else:
+            except Exception as search_error:
+                #progress_placeholder.error(f"❌ Søgning fejlede: {search_error}")
                 return []
             
         except Exception as e:
+            st.error(f"❌ Generel fejl: {e}")
             return []
     
+    def _format_time_display(self, days):
+        """Helper funktion til tid formatering"""
+        if days == 0:
+            return "i dag"
+        elif days == 1:
+            return "1 dag"
+        elif days <= 30:
+            return f"{days} dage"
+        elif days <= 365:
+            months = days // 30
+            return f"~{months} måneder"
+        else:
+            years = days // 365
+            return f"~{years} år"
     def _process_catalog(self, catalog):
         """
         Processerer ObsPy event catalog til standard dictionary format.
@@ -1671,10 +1512,10 @@ class StreamlinedDataManager:
                 break  # Ingen flere kandidater
         
         return selected
-    
+ 
     def _fallback_station_list_optimized(self, earthquake, min_distance_km, max_distance_km, target_stations):
         """
-        Optimeret fallback til kurateret liste af analyse-klar stationer.
+        UDVIDET fallback til kurateret liste af analyse-klar stationer.
         
         Bruges når IRIS inventory søgning fejler eller finder utilstrækkelige stationer.
         Baseret på hånd-kurateret liste af pålidelige globale stationer med
@@ -1690,58 +1531,126 @@ class StreamlinedDataManager:
             list: Fallback stationer i afstands range
             
         Note:
-            Kurateret liste fokuserer på:
-            - IU/II GSN stationer (højeste prioritet)
-            - G GEOSCOPE stationer (høj kvalitet)
-            - Kendte pålidelige regionale stationer
-            - Geografisk distribution på globalt niveau
-            
-        Example:
-            fallback = manager._fallback_station_list_optimized(eq, 800, 2200, 4)
+            Udvidet liste med 80+ stationer for bedre geografisk dækning.
+            Fokuserer på IU/II GSN, G GEOSCOPE, GE GEOFON og pålidelige regionale netværk.
         """
         eq_lat = earthquake['latitude']
         eq_lon = earthquake['longitude']
         eq_depth = earthquake['depth_km']
         
-        # Hånd-kurateret liste af pålidelige analyse stationer
+        # MASSIVT UDVIDET liste af pålidelige analyse stationer
         # Baseret på årelang erfaring med data kvalitet og tilgængelighed
         analysis_ready_stations = [
-            # Europa - Høj kvalitets bredband stationer
-            {'net': 'IU', 'sta': 'KONO', 'lat': 59.65, 'lon': 9.60},    # Norge
-            {'net': 'II', 'sta': 'BFO', 'lat': 48.33, 'lon': 8.33},     # Tyskland
-            {'net': 'G', 'sta': 'SSB', 'lat': 45.28, 'lon': 4.54},      # Frankrig
-            {'net': 'IU', 'sta': 'KIEV', 'lat': 50.70, 'lon': 29.22},   # Ukraine
-            {'net': 'GE', 'sta': 'WLF', 'lat': 49.66, 'lon': 6.15},     # Tyskland
+            # ============= EUROPA - Høj kvalitets bredband stationer =============
+            {'net': 'IU', 'sta': 'KONO', 'lat': 59.65, 'lon': 9.60},     # Norge - Kongsberg
+            {'net': 'II', 'sta': 'BFO', 'lat': 48.33, 'lon': 8.33},      # Tyskland - Black Forest
+            {'net': 'G', 'sta': 'SSB', 'lat': 45.28, 'lon': 4.54},       # Frankrig - Saint Sauveur en Rue
+            {'net': 'IU', 'sta': 'KIEV', 'lat': 50.70, 'lon': 29.22},    # Ukraine - Kiev
+            {'net': 'GE', 'sta': 'WLF', 'lat': 49.66, 'lon': 6.15},      # Tyskland - Walferdange
+            {'net': 'G', 'sta': 'ECH', 'lat': 48.22, 'lon': 7.16},       # Frankrig - Echery
+            {'net': 'GE', 'sta': 'STU', 'lat': 48.77, 'lon': 9.19},      # Tyskland - Stuttgart
+            {'net': 'II', 'sta': 'ALE', 'lat': 82.50, 'lon': -62.35},    # Canada - Alert (Arktis)
+            {'net': 'IU', 'sta': 'KEV', 'lat': 69.76, 'lon': 27.00},     # Finland - Kevo
+            {'net': 'G', 'sta': 'UNM', 'lat': 46.79, 'lon': 8.56},       # Schweiz - Untermalingen
+            {'net': 'II', 'sta': 'ESK', 'lat': 55.32, 'lon': -3.20},     # UK - Eskdalemuir
+            {'net': 'G', 'sta': 'CZTB', 'lat': 50.17, 'lon': 14.55},     # Tjekkiet - Certova Tabule
+            {'net': 'MN', 'sta': 'AQU', 'lat': 42.35, 'lon': 13.40},     # Italien - L'Aquila
+            {'net': 'GE', 'sta': 'MORC', 'lat': 40.82, 'lon': -6.67},    # Spanien - Moraleja de Sayago
+            {'net': 'HL', 'sta': 'SANT', 'lat': 36.43, 'lon': 25.46},    # Grækenland - Santorini
             
-            # Nordamerika - GSN stationer
-            {'net': 'IU', 'sta': 'ANMO', 'lat': 34.95, 'lon': -106.46}, # New Mexico
-            {'net': 'IU', 'sta': 'HRV', 'lat': 42.51, 'lon': -71.56},   # Harvard
-            {'net': 'IU', 'sta': 'COLA', 'lat': 64.87, 'lon': -147.86}, # Alaska
-            {'net': 'US', 'sta': 'LRAL', 'lat': 39.88, 'lon': -77.45},  # Virginia
-            {'net': 'IU', 'sta': 'CCM', 'lat': 38.06, 'lon': -91.24},   # Missouri
+            # ============= NORDAMERIKA - GSN og regionale stationer =============
+            {'net': 'IU', 'sta': 'ANMO', 'lat': 34.95, 'lon': -106.46},  # New Mexico - Albuquerque
+            {'net': 'IU', 'sta': 'HRV', 'lat': 42.51, 'lon': -71.56},    # Massachusetts - Harvard
+            {'net': 'IU', 'sta': 'COLA', 'lat': 64.87, 'lon': -147.86},  # Alaska - College
+            {'net': 'US', 'sta': 'LRAL', 'lat': 39.88, 'lon': -77.45},   # Virginia - Lueray
+            {'net': 'IU', 'sta': 'CCM', 'lat': 38.06, 'lon': -91.24},    # Missouri - Cathedral Cave
+            {'net': 'IU', 'sta': 'GRFO', 'lat': 39.69, 'lon': -77.93},   # Maryland - Greenfore
+            {'net': 'IU', 'sta': 'DWPF', 'lat': 28.11, 'lon': -81.44},   # Florida - Disney Wilderness
+            {'net': 'IU', 'sta': 'TUC', 'lat': 32.31, 'lon': -110.78},   # Arizona - Tucson
+            {'net': 'IU', 'sta': 'SSPA', 'lat': 40.64, 'lon': -77.89},   # Pennsylvania - Standing Stone
+            {'net': 'IU', 'sta': 'WVT', 'lat': 36.13, 'lon': -87.83},    # Tennessee - Waverly
+            {'net': 'IU', 'sta': 'JOHN', 'lat': 16.73, 'lon': -169.53},  # Johnston Island
+            {'net': 'IU', 'sta': 'WAKE', 'lat': 19.28, 'lon': 166.65},   # Wake Island
+            {'net': 'IU', 'sta': 'MIDW', 'lat': 28.21, 'lon': -177.37},  # Midway Island
+            {'net': 'II', 'sta': 'PFO', 'lat': 33.61, 'lon': -116.46},   # Californien - Pinon Flat
+            {'net': 'II', 'sta': 'BORG', 'lat': 64.75, 'lon': -21.32},   # Island - Borgarnes
+            {'net': 'CN', 'sta': 'YKA', 'lat': 62.48, 'lon': -114.60},   # Canada - Yellowknife
+            {'net': 'CN', 'sta': 'SCHQ', 'lat': 54.83, 'lon': -66.77},   # Canada - Schefferville
             
-            # Asien-Pacific - Pålidelige bredband stationer
-            {'net': 'IU', 'sta': 'MAJO', 'lat': 36.54, 'lon': 138.20},  # Japan
-            {'net': 'IU', 'sta': 'INCN', 'lat': 37.48, 'lon': 126.62},  # Sydkorea
-            {'net': 'II', 'sta': 'KURK', 'lat': 50.71, 'lon': 78.62},   # Kasakhstan
-            {'net': 'IU', 'sta': 'ULN', 'lat': 47.87, 'lon': 107.05},   # Mongoliet
-            {'net': 'IU', 'sta': 'CHTO', 'lat': 18.81, 'lon': 98.98},   # Thailand
+            # ============= ASIEN-PACIFIC - Pålidelige bredband stationer =============
+            {'net': 'IU', 'sta': 'MAJO', 'lat': 36.54, 'lon': 138.20},   # Japan - Matsushiro
+            {'net': 'IU', 'sta': 'INCN', 'lat': 37.48, 'lon': 126.62},   # Sydkorea - Incheon
+            {'net': 'II', 'sta': 'KURK', 'lat': 50.71, 'lon': 78.62},    # Kasakhstan - Kurchatov
+            {'net': 'IU', 'sta': 'ULN', 'lat': 47.87, 'lon': 107.05},    # Mongoliet - Ulaanbaatar
+            {'net': 'IU', 'sta': 'CHTO', 'lat': 18.81, 'lon': 98.98},    # Thailand - Chiang Mai
+            {'net': 'II', 'sta': 'MBAR', 'lat': -0.60, 'lon': 30.74},    # Rwanda - Mbarara
+            {'net': 'II', 'sta': 'ABKT', 'lat': 37.93, 'lon': 58.12},    # Turkmenistan - Ashgabat
+            {'net': 'II', 'sta': 'AAK', 'lat': 42.64, 'lon': 74.49},     # Kirgisistan - Ala Archa
+            {'net': 'IU', 'sta': 'TARA', 'lat': 1.86, 'lon': 126.07},    # Indonesien - Tarawasi
+            {'net': 'IU', 'sta': 'COCO', 'lat': -12.19, 'lon': 96.83},   # Cocos Islands
+            {'net': 'IU', 'sta': 'TIXI', 'lat': 71.64, 'lon': 128.87},   # Rusland - Tiksi
+            {'net': 'IU', 'sta': 'KRIB', 'lat': 1.33, 'lon': 172.92},    # Kiribati
+            {'net': 'IU', 'sta': 'GUMO', 'lat': 13.59, 'lon': 144.87},   # Guam
+            {'net': 'II', 'sta': 'UOSS', 'lat': 24.95, 'lon': 121.62},   # Taiwan - Uoss
+            {'net': 'IU', 'sta': 'XMAS', 'lat': 2.04, 'lon': -157.45},   # Christmas Island
+            {'net': 'IU', 'sta': 'RAO', 'lat': 46.99, 'lon': 142.69},    # Rusland - Raoul
+            {'net': 'IU', 'sta': 'BILL', 'lat': 68.07, 'lon': 166.45},   # Rusland - Bilibino
+            {'net': 'IU', 'sta': 'SLBS', 'lat': 23.69, 'lon': 90.40},    # Bangladesh - Srimangal
+            {'net': 'II', 'sta': 'TLY', 'lat': 51.68, 'lon': 103.64},    # Rusland - Talaya
+            {'net': 'II', 'sta': 'NNA', 'lat': -11.99, 'lon': -76.84},   # Peru - Nana
             
-            # Australien/Oceanien
-            {'net': 'G', 'sta': 'CAN', 'lat': -35.32, 'lon': 149.00},   # Australien
-            {'net': 'IU', 'sta': 'CTAO', 'lat': -20.09, 'lon': 146.25}, # Australien
-            {'net': 'II', 'sta': 'WRAB', 'lat': -19.93, 'lon': 134.36}, # Australien
-            {'net': 'IU', 'sta': 'NWAO', 'lat': -32.93, 'lon': 117.24}, # Australien
+            # ============= AUSTRALIEN/OCEANIEN =============
+            {'net': 'G', 'sta': 'CAN', 'lat': -35.32, 'lon': 149.00},    # Australien - Canberra
+            {'net': 'IU', 'sta': 'CTAO', 'lat': -20.09, 'lon': 146.25},  # Australien - Charters Towers
+            {'net': 'II', 'sta': 'WRAB', 'lat': -19.93, 'lon': 134.36},  # Australien - Warramunga
+            {'net': 'IU', 'sta': 'NWAO', 'lat': -32.93, 'lon': 117.24},  # Australien - Narrogin
+            {'net': 'IU', 'sta': 'TSUM', 'lat': -19.20, 'lon': 17.58},   # Namibia - Tsumeb
+            {'net': 'G', 'sta': 'NOUC', 'lat': -22.10, 'lon': 166.30},   # Ny Kaledonien - Noumea
+            {'net': 'II', 'sta': 'HOPE', 'lat': -54.28, 'lon': 158.95},  # Heard Island
+            {'net': 'IU', 'sta': 'FUNA', 'lat': -8.53, 'lon': 179.20},   # Tuvalu - Funafuti
+            {'net': 'IU', 'sta': 'HNR', 'lat': -9.44, 'lon': 159.95},    # Solomon Øer - Honiara
+            {'net': 'IU', 'sta': 'PMSA', 'lat': -14.30, 'lon': -170.69}, # Samoa - Palmer
+            {'net': 'IU', 'sta': 'RAR', 'lat': -21.21, 'lon': -159.77},  # Cook Øer - Rarotonga
+            {'net': 'IU', 'sta': 'AFI', 'lat': -13.91, 'lon': -171.78},  # Samoa - Afiamalu
             
-            # Sydamerika
-            {'net': 'IU', 'sta': 'SAML', 'lat': -8.95, 'lon': -63.18},  # Brasilien
-            {'net': 'IU', 'sta': 'LPAZ', 'lat': -16.29, 'lon': -68.13}, # Bolivia
-            {'net': 'IU', 'sta': 'RCBR', 'lat': -5.82, 'lon': -35.90},  # Brasilien
+            # ============= SYDAMERIKA =============
+            {'net': 'IU', 'sta': 'SAML', 'lat': -8.95, 'lon': -63.18},   # Brasilien - Samuel
+            {'net': 'IU', 'sta': 'LPAZ', 'lat': -16.29, 'lon': -68.13},  # Bolivia - La Paz
+            {'net': 'IU', 'sta': 'RCBR', 'lat': -5.82, 'lon': -35.90},   # Brasilien - Rocha
+            {'net': 'IU', 'sta': 'SJG', 'lat': 18.11, 'lon': -66.15},    # Puerto Rico - San Juan
+            {'net': 'II', 'sta': 'SACV', 'lat': 14.97, 'lon': -23.61},   # Cap Verde - Santiago
+            {'net': 'IU', 'sta': 'TRQA', 'lat': -38.06, 'lon': -58.98},  # Argentina - Tornquist
+            {'net': 'IU', 'sta': 'TEIG', 'lat': -35.00, 'lon': -69.00},  # Argentina - Teide
+            {'net': 'GT', 'sta': 'PLCA', 'lat': 7.00, 'lon': -73.08},    # Colombia - Playa Rica
+            {'net': 'IU', 'sta': 'SDDR', 'lat': -22.48, 'lon': -68.91},  # Chile - San Pedro de Atacama
+            {'net': 'II', 'sta': 'CMLA', 'lat': -37.76, 'lon': -72.93},  # Chile - Camaleon
             
-            # Afrika/Mellemøsten
-            {'net': 'G', 'sta': 'TAM', 'lat': 22.79, 'lon': 5.53},      # Algeriet
-            {'net': 'II', 'sta': 'MSEY', 'lat': -4.67, 'lon': 55.48},   # Seychellerne
-            {'net': 'II', 'sta': 'ASCN', 'lat': -7.93, 'lon': -14.36}   # Ascension Island
+            # ============= AFRIKA/MELLEMØSTEN =============
+            {'net': 'G', 'sta': 'TAM', 'lat': 22.79, 'lon': 5.53},       # Algeriet - Tamanrasset
+            {'net': 'II', 'sta': 'MSEY', 'lat': -4.67, 'lon': 55.48},    # Seychellerne - Mahe
+            {'net': 'II', 'sta': 'ASCN', 'lat': -7.93, 'lon': -14.36},   # Ascension Island
+            {'net': 'G', 'sta': 'SANVU', 'lat': -15.45, 'lon': 167.20},  # Vanuatu - Santo
+            {'net': 'IU', 'sta': 'KMBO', 'lat': -1.13, 'lon': 37.25},    # Kenya - Kilima Mbogo
+            {'net': 'II', 'sta': 'LVNJ', 'lat': 45.30, 'lon': 28.80},    # Rumænien - Livani
+            {'net': 'IU', 'sta': 'LSZA', 'lat': -29.88, 'lon': 30.67},   # Sydafrika - Lesotho
+            {'net': 'II', 'sta': 'RPN', 'lat': -27.13, 'lon': -109.33},  # Easter Island - Rapa Nui
+            {'net': 'IU', 'sta': 'DGAR', 'lat': -7.41, 'lon': 72.45},    # Diego Garcia
+            {'net': 'G', 'sta': 'IVI', 'lat': 8.50, 'lon': -1.30},       # Elfenbenskysten - Ivory Coast
+            
+            # ============= ANTARKTIS =============
+            {'net': 'IU', 'sta': 'QSPA', 'lat': -89.93, 'lon': 144.44},  # Sydpolen - Amundsen Scott
+            {'net': 'IU', 'sta': 'SBA', 'lat': -77.85, 'lon': 166.76},   # Antarktis - Scott Base
+            {'net': 'IU', 'sta': 'PMAC', 'lat': -64.77, 'lon': -64.05},  # Antarktis - Port Martin
+            
+            # ============= ØVRIGE HØJE KVALITETS STATIONER =============
+            {'net': 'GE', 'sta': 'IBBN', 'lat': 52.34, 'lon': 9.67},     # Tyskland - Ibbenburen
+            {'net': 'GE', 'sta': 'RGN', 'lat': 54.55, 'lon': 13.32},     # Tyskland - Ruegen
+            {'net': 'GE', 'sta': 'BSEG', 'lat': 52.10, 'lon': 13.67},    # Tyskland - Bad Segeberg
+            {'net': 'GE', 'sta': 'BRNL', 'lat': 53.11, 'lon': 8.81},     # Tyskland - Braunlage
+            {'net': 'GE', 'sta': 'CLZ', 'lat': 51.86, 'lon': 10.10},     # Tyskland - Clausthal-Zellerfeld
+            {'net': 'GE', 'sta': 'UGM', 'lat': 48.88, 'lon': 13.61},     # Tyskland - Untergünzburg
+            {'net': 'GE', 'sta': 'CART', 'lat': 37.76, 'lon': -2.51},    # Spanien - Cartagena
+            {'net': 'FR', 'sta': 'OGSI', 'lat': 47.28, 'lon': 5.51},     # Frankrig - Ouges
         ]
         
         stations = []
@@ -1781,48 +1690,11 @@ class StreamlinedDataManager:
         selected = self._select_distributed_stations(stations, target_stations)
         
         return selected[:target_stations]
-    
+
     def download_waveform_data(self, earthquake, station):
         """
-        Henter waveform data med korrekt timing validering og korrektion.
-        
-        Kritisk funktion der henter 30 minutters seismisk data fra IRIS
-        med præcis timing alignment til jordskælv oprindelsestid. Implementerer
-        robust fejlhåndtering og automatisk channel prioritering.
-        
-        Args:
-            earthquake (dict): Jordskælv med ObsPy event objekt
-            station (dict): Station metadata med netværk og position
-            
-        Returns:
-            dict or None: Komplet waveform data struktur eller None ved fejl
-                Returneret struktur indeholder:
-                - 'time': Tid array relativ til jordskælv (sekunder)
-                - 'sampling_rate': Data sampling frekvens (Hz)
-                - 'raw_data': Instrument counts (original enheder)
-                - 'displacement_data': Kalibreret displacement (mm)
-                - 'timing_offset': Detekteret timing korrektion
-                - 'timing_validation': Fysisk realistisk vurdering
-                
-        Note:
-            Timing er KRITISK for seismisk analyse:
-            - Data starter præcis ved jordskælv tid (ikke station tid)
-            - 30 minutters varighed fanger alle relevante faser
-            - Automatisk korrektion for data/event timing forskelle
-            - Validering af P-bølge hastigheder (5.8-13.7 km/s)
-            
-        Channel Priority:
-            1. HH* - High sample rate, high gain (100 Hz)
-            2. BH* - Broadband, high gain (20-40 Hz)  
-            3. LH* - Long period, high gain (1 Hz)
-            4. *H* - Any high gain channels
-            5. *N*,*E*,*Z* - Fallback til enhver orientering
-            
-        Example:
-            waveform = manager.download_waveform_data(earthquake, station)
-            if waveform:
-                print(f"Data: {len(waveform['time'])} samples @ {waveform['sampling_rate']} Hz")
-                print(f"Timing offset: {waveform['timing_offset']:.1f} seconds")
+        Clean version der IKKE viser UI elementer - returnerer kun data eller None.
+        Alle UI elementer håndteres i calling function.
         """
         if not self.client:
             return None
@@ -1830,17 +1702,10 @@ class StreamlinedDataManager:
         try:
             # Hent præcis jordskælv tidspunkt fra ObsPy event
             eq_time = earthquake['obspy_event'].preferred_origin().time
-            
-            # KRITISK: Start data præcis ved jordskælv tid, ikke station lokal tid
             start_time = eq_time  # Ingen offset - præcis timing
             end_time = eq_time + 1800  # 30 minutter (1800 sekunder)
             
-            # Bruger feedback til langsom IRIS download
-            progress = st.empty()
-            progress.info(f"📡 Henter data...")
-            
             # Prioriteret channel liste - højeste sampling rate først
-            # Dette sikrer bedst mulig data kvalitet til analyse
             channel_priorities = ["HH*", "BH*", "LH*", "*H*", "*N*,*E*,*Z*"]
             
             waveform = None
@@ -1861,27 +1726,19 @@ class StreamlinedDataManager:
                     
                     if len(waveform) > 0:
                         used_channels = channels
-                        sample_rate = waveform[0].stats.sampling_rate
-                        progress.success(f"✅ Data hentet ({sample_rate} Hz)")
-                        progress.success(f"Se analyse nedenfor...")
                         break  # Stop ved første succesfulde download
-                        
+                            
                 except Exception:
                     continue  # Prøv næste channel type
             
             # Validér at data blev hentet
             if waveform is None or len(waveform) == 0:
-                progress.error(f"❌ Ingen data tilgængelig")
                 return None
             
             # TIMING VALIDERING: Tjek data start tid mod jordskælv tid
             first_trace = waveform[0]
             data_start_time = first_trace.stats.starttime
             time_offset = float(data_start_time - eq_time)
-            
-            # Vis kun timing advarsler hvis signifikant offset
-            if abs(time_offset) > 10:  # Mere end 10 sekunder
-                progress.warning(f"⚠️ Timing justeret: {time_offset:.1f}s offset")
             
             # Processer waveform med timing korrektion
             processed_data = self._process_real_waveform_FIXED(
@@ -1894,7 +1751,7 @@ class StreamlinedDataManager:
                 processed_data['data_start_utc'] = data_start_time.strftime('%Y-%m-%d %H:%M:%S')
                 processed_data['earthquake_utc'] = eq_time.strftime('%Y-%m-%d %H:%M:%S')
                 
-                # Fysisk timing validering - advarer kun ved problemer
+                # Fysisk timing validering
                 is_valid, validation_message, validation_info = self.processor.validate_earthquake_timing(
                     earthquake, station, processed_data
                 )
@@ -1905,18 +1762,14 @@ class StreamlinedDataManager:
                     'info': validation_info
                 }
                 
-                # Vis kun timing problemer hvis de eksisterer
-                if not is_valid:
-                    expected_range = validation_info['realistic_p_range']
-                    progress.warning(f"⚠️ {validation_message}")
-                    st.info(f"💡 Forventet: {expected_range[0]:.1f}-{expected_range[1]:.1f}s")
-            
-            return processed_data
-                
-        except Exception as e:
-            st.error(f"❌ Download fejl: {e}")
+                return processed_data
+            else:
+                return None
+                    
+        except Exception:
             return None
-    
+
+
     def _process_real_waveform_FIXED(self, waveform, earthquake, station, used_channels, time_offset):
         """
         Processerer real waveform data med præcis timing korrektion.
@@ -2228,515 +2081,450 @@ class StreamlinedDataManager:
             return None
 
 
+    
 class StreamlinedSeismicApp:
     """
     Hovedapplikation klasse der integrerer alle komponenter til samlet brugeroplevelse.
-    
-    Streamlit-baseret web interface der kombinerer:
-    - Interactive verdenskort med jordskælv og stationer
-    - Real-time data hentning fra IRIS
-    - Avanceret seismisk analyse med multiple visualiseringer
-    - Brugervenlig kontrol panel til filter og indstillinger
-    - Excel eksport til professionel rapportering
-    
-    Denne klasse fungerer som central koordinator mellem data management,
-    signal processing og bruger interface komponenter.
+    OPTIMERET VERSION - ingen dobbelt rendering, stabile sliders, ingen kort titel.
     """
     
-    def __init__(self):
-        """
-        Initialiserer hovedapplikation med session state og data manager.
+    def _format_time_display(self, days):
+        """Helper funktion til tid formatering"""
+        if days == 0:
+            return "i dag"
+        elif days == 1:
+            return "1 dag"
+        elif days <= 30:
+            return f"{days} dage"
+        elif days <= 365:
+            months = days // 30
+            return f"~{months} måneder"
+        else:
+            years = days // 365
+            return f"~{years} år"
         
-        Opsætter:
-        - Streamlit session state management
-        - IRIS data manager forbindelse
-        - Automatic jordskælv data loading
-        """
-        self.setup_session_state()
-        self.data_manager = StreamlinedDataManager()
-        self.initialize_app()
-        # Velkomst sektion med gradient baggrund
-        with st.sidebar:
-            st.markdown("---")
-            st.markdown("""
-            <h2 style='color: #1f77b4; margin-bottom: 20px;'>🌍 GEOseis</h2>
-            </div>
-            """, unsafe_allow_html=True)
-            st.caption("""
-            **FEATURES:**
-            - Real-time jordskælv data fra IRIS  
-            - Omfattende filtrering og analyse
-            - Ms magnitude beregning  
-            - Interaktive visualiseringer  
-            - Excel eksport til undervisningen
-            """)
-            st.markdown("---")
-            st.caption("""
-            **SÅDAN GØR DU:**
-            1. Justér skyder for de nyeste 25 jordskælv
-            2. Klik på et jordskælv på kortet
-            2. Vælg en analyse-klar station 
-            3. Rul ned og se analysen
-            4. Juster filter indstillinger
-            5. Eksporter til Excel
-            """)
-            
-            st.markdown("---")
-            st.caption("🌍 **Udviklet af: Philip Kruse Jakobsen** ")
-            st.caption("Kontakt: pj@sg.dk")
 
-    
+    def __init__(self):
+            """Initialiserer hovedapplikation med session state og data manager."""
+            self.setup_session_state()
+            self.data_manager = StreamlinedDataManager()
+            self.initialize_app()
+                    # Sidebar med smart indhold
+            with st.sidebar:
+                if st.session_state.sidebar_visible:
+                    # Header sektion
+                    st.subheader("🌍 GEOseis")
+                    st.caption("Version 3.2 - Juni 2025")
+                    
+                    # Beskrivelse sektion
+                    with st.expander("🌍 Om programmet", expanded=True):
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">GEOseis er udviklet til naturvidenskabsundervisere på ungdoms- eller tilsvarende uddannelser. Man kan let finde, analysere og omforme seismiske data fra jordskælv så de kan bruges i undervisningen. Siden har et omfattende interaktivt analyseværktøj som skal hjælpe med at forstå og finde pædagiske eksempler til undervisningen. </p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">Udviklet af: Philip Kruse Jakobsen, pj@sg.dk</p>', unsafe_allow_html=True)
+                        
+                    # Quick start sektion
+                    with st.expander("🚀 Quick Start", expanded=True):
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">1. Justér filtre → Magnitude range, dybde og årstal</p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">2. Klik jordskælv → På det interaktive kort</p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">3. Vælg station → Fra listen til højre</p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">4. Se analyse, anvend evt. filtre </p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">5. Eksporter → Download Excel fil </p>', unsafe_allow_html=True)
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">5. Der findes en brugerguide i analyseafsnittet </p>', unsafe_allow_html=True)
+                else:
+                    # Helt tom sidebar når collapsed
+                    pass
+
     def setup_session_state(self):
-        """
-        Opsætter Streamlit session state med standard værdier.
+        """Opsætter Streamlit session state med standard værdier."""
+        # Standard filter indstillinger
+        if 'magnitude_range' not in st.session_state:
+            st.session_state.magnitude_range = (6.5, 9.0)
         
-        Session state håndterer persistent data på tværs af bruger interaktioner:
-        - earthquake_df: DataFrame med tilgængelige jordskælv
-        - selected_earthquake: Aktuel valgt jordskælv  
-        - station_list: Stationer tilgængelige for valgt jordskælv
-        - selected_station: Aktuel valgt station
-        - waveform_data: Hentet seismisk data
-        - component_visibility: Kontrol af N/E/Z komponent visning
-        - analysis_results: Cached analyse resultater
+        if 'year_range' not in st.session_state:
+            current_year = datetime.now().year
+            st.session_state.year_range = (2020, current_year)
+            
+        # Dybde range filter (1-750 km som default)
+        if 'depth_range' not in st.session_state:
+            st.session_state.depth_range = (1, 750)
         
-        Note:
-            Session state bevares mellem Streamlit reruns og giver
-            kontinuerlig brugeroplevelse uden data tab.
-        """
-        defaults = {
-            'earthquake_df': pd.DataFrame(),
-            'selected_earthquake': None,
-            'station_list': [],
-            'selected_station': None,
-            'waveform_data': None,
-            'analysis_results': {},
-            'magnitude_threshold': 6.5,  # Standard minimum magnitude
-            'data_loaded': False,
-            'show_stations': False,
-            'show_analysis': False,
-            'component_visibility': {'north': True, 'east': True, 'vertical': True}  # Default alle komponenter synlige
-        }
+        # Max antal jordskælv (standard 25)
+        if 'max_earthquakes' not in st.session_state:
+            st.session_state.max_earthquakes = 25
         
-        # Initialisér kun hvis ikke allerede sat
-        for key, value in defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
-    
+        # Data state
+        if 'earthquake_df' not in st.session_state:
+            st.session_state.earthquake_df = pd.DataFrame()
+        
+        if 'data_loaded' not in st.session_state:
+            st.session_state.data_loaded = False
+        
+        # Selection state
+        if 'selected_earthquake' not in st.session_state:
+            st.session_state.selected_earthquake = None
+        
+        if 'selected_station' not in st.session_state:
+            st.session_state.selected_station = None
+        
+        # UI state
+        if 'show_stations' not in st.session_state:
+            st.session_state.show_stations = False
+        
+        if 'show_analysis' not in st.session_state:
+            st.session_state.show_analysis = False
+        
+        # Data cache
+        if 'station_list' not in st.session_state:
+            st.session_state.station_list = []
+        
+        if 'waveform_data' not in st.session_state:
+            st.session_state.waveform_data = None
+        
+        if 'analysis_results' not in st.session_state:
+            st.session_state.analysis_results = None
+
+        # Initialize sidebar state
+        if 'sidebar_visible' not in st.session_state:
+            st.session_state.sidebar_visible = True
+        
+        # Component visibility for waveform plots
+        if 'component_visibility' not in st.session_state:
+            st.session_state.component_visibility = {
+                'north': True,
+                'east': True, 
+                'vertical': True
+            }
+
     def initialize_app(self):
-        """
-        Initialiserer applikation med header og initial data loading.
+        """Initialiserer applikation med header og initial data loading."""
         
-        Viser brugervenlig header og starter automatisk data loading
-        hvis ikke allerede udført.
-        """
+        st.markdown('<div id="map-section" style="scroll-margin-top: 0px;"></div>', unsafe_allow_html=True)
         st.markdown("## 🌍 GEOseis")
         st.markdown("**Overskuelig seismisk analyse med Excel-eksport til undervisningen**")
-        # Automatisk data loading ved første besøg
-        if not st.session_state.data_loaded:
+        
+        # KRITISK FIX: Tilføj slider_initialized flag
+        if 'sliders_initialized' not in st.session_state:
+            st.session_state.sliders_initialized = False
+        
+            
+        # KRITISK FIX: Kun load data ved første besøg eller hvis sliders er initialiseret
+        if not st.session_state.data_loaded and st.session_state.sliders_initialized:
             with st.spinner("🔍 Indlæser jordskælv..."):
                 self.load_initial_data()
-    
+        elif not st.session_state.data_loaded and not st.session_state.sliders_initialized:
+            # Første gang - load data uden at vente på sliders
+            with st.spinner("🔍 Indlæser jordskælv..."):
+                self.load_initial_data()
+                st.session_state.sliders_initialized = True
+
+
     def load_initial_data(self):
+        """Henter initial jordskælv data ved app opstart eller filter opdatering."""
         try:
+            # TILFØJET: Undgå genindlæsning hvis data allerede er loadet og sliders bare ændres
+            if st.session_state.data_loaded and not st.session_state.get('force_reload', False):
+                return
+            
+            # Reset force_reload flag
+            if 'force_reload' in st.session_state:
+                st.session_state.force_reload = False
+            
+            # Hent filter værdier fra session state
+            magnitude_range = st.session_state.magnitude_range
+            year_range = st.session_state.year_range
+            depth_range = st.session_state.depth_range
+            max_count = st.session_state.max_earthquakes
+            
             earthquakes = self.data_manager.fetch_latest_earthquakes(
-            min_magnitude=st.session_state.magnitude_threshold,
-            limit=25
+                magnitude_range=magnitude_range,
+                year_range=year_range,
+                depth_range=depth_range,
+                limit=max_count
             )
-        
+            
             if earthquakes:
-                df = pd.DataFrame(earthquakes)
-                st.session_state.earthquake_df = df
+                earthquakes_df = pd.DataFrame(earthquakes)
+                st.session_state.earthquake_df = earthquakes_df
                 st.session_state.data_loaded = True
             else:
-                st.error("❌ Ingen jordskælv fundet. Prøv at sænke magnitude threshold.")
-            
+                st.session_state.earthquake_df = pd.DataFrame()
+                st.session_state.data_loaded = True
+                    
         except Exception as e:
-            st.error(f"❌ Kunne ikke forbinde til IRIS server: {e}")
-            st.info("💡 Tjek din internetforbindelse og prøv igen")
-            st.session_state.data_loaded = False
+            st.error(f"❌ Fejl ved indlæsning af data: {str(e)}")
+            st.session_state.earthquake_df = pd.DataFrame()
+            st.session_state.data_loaded = True
 
     def get_earthquake_color_and_size(self, magnitude):
-        """
-        Bestemmer farve og størrelse for jordskælv markører baseret på magnitude.
-        
-        Bruger standard seismologisk farveskala for intuitivt interface:
-        - Større jordskælv = varmere farver (rød)
-        - Mindre jordskælv = køligere farver (grøn)
-        - Markør størrelse skalerer med magnitude
-        
-        Args:
-            magnitude (float): Jordskælv magnitude
-            
-        Returns:
-            tuple: (color, size) for Folium markør
-            
-        Scale:
-            M≥8.0: Meget store jordskælv (darkred, 15px)
-            M7.5-7.9: Store jordskælv (red, 12px)
-            M7.0-7.4: Kraftige jordskælv (orange, 10px)
-            M6.5-6.9: Moderate jordskælv (yellow, 8px)
-            M<6.5: Små jordskælv (green, 6px)
-        """
+        """Bestemmer farve og størrelse for jordskælv markører baseret på magnitude."""
         if magnitude >= 8.0:
-            return 'darkred', 15
+            return 'purple', 15  # ÆNDRET: Lilla for de største jordskælv
         elif magnitude >= 7.5:
-            return 'red', 12
+            return 'darkred', 12
         elif magnitude >= 7.0:
-            return 'orange', 10
+            return 'red', 10
         elif magnitude >= 6.5:
-            return 'yellow', 8
+            return 'orange', 8
+        elif magnitude >= 6.0:
+            return 'yellow', 6
+        elif magnitude >= 5.0:
+            return 'lightgreen', 5
         else:
-            return 'green', 6
+            return 'gray', 4  # Fallback for M < 5.0 (selvom de ikke forekommer)
+    
     def create_optimized_map(self, earthquakes_df, stations=None):
         """
-        Opretter optimeret Folium kort med automatisk zoom og intelligente markører.
+        Opretter optimeret Folium kort med ren og simpel zoom logik.
+        RETTET VERSION - Med korrekte golden border station markører og rød selektion.
         """
         if earthquakes_df.empty:
             return None
         
-        # Intelligent bounds beregning baseret på data og selection
+        # Check om vi skal vise stationer view eller global view
         selected_eq = st.session_state.get('selected_earthquake')
+        show_stations = st.session_state.get('show_stations', False)
         
-        if stations and st.session_state.get('show_stations', False) and selected_eq:
-            # Fokusér på jordskælv + stationer når begge er valgt
+        if stations and show_stations and selected_eq:
+            # STATIONS VIEW: Zoom ind på valgt jordskælv og stationer
             eq_lat, eq_lon = selected_eq['latitude'], selected_eq['longitude']
             station_lats = [s['latitude'] for s in stations]
             station_lons = [s['longitude'] for s in stations]
             
-            # Kombiner alle koordinater til bounds beregning
+            # Find bounds for jordskælv + stationer
             all_lats = [eq_lat] + station_lats
             all_lons = [eq_lon] + station_lons
             
             lat_min, lat_max = min(all_lats), max(all_lats)
             lon_min, lon_max = min(all_lons), max(all_lons)
             
-            # Intelligent padding baseret på distribution
-            lat_range = lat_max - lat_min
-            lon_range = lon_max - lon_min
-            
-            if lat_range < 5 and lon_range < 5:
-                padding = max(2.0, max(lat_range, lon_range) * 0.5)
-                zoom_start = 5
-            elif lat_range < 15 and lon_range < 15:
-                padding = max(lat_range, lon_range) * 0.3
-                zoom_start = 4
-            else:
-                padding = max(lat_range, lon_range) * 0.15
-                zoom_start = 3
-            
+            # Simpel center beregning
             center_lat = (lat_min + lat_max) / 2
             center_lon = (lon_min + lon_max) / 2
             
-            # Manuel zoom til stationer
+            # Opret kort med fokuseret view
             m = folium.Map(
                 location=[center_lat, center_lon],
-                zoom_start=zoom_start,
+                zoom_start=6,
                 tiles='Esri_WorldImagery',
                 attr=' ',
-                zoom_control=False,  # Fjerner +/- knapper
-                scrollWheelZoom=True,  # Behold mouse wheel zoom
-                doubleClickZoom=True,  # Behold double-click zoom
-                dragging=True  # Behold drag funktionalitet
+                scrollWheelZoom=True,
+                doubleClickZoom=True,
+                dragging=True,
+                zoomControl=False
             )
             
-            # Anvend bounds for stationer
-            southwest = [lat_min - padding, lon_min - padding]
-            northeast = [lat_max + padding, lon_max + padding]
-            m.fit_bounds([southwest, northeast], padding=(30, 30))
+            # Simpel bounds beregning - kun lidt ekstra plads
+            lat_padding = max((lat_max - lat_min) * 0.1, 1.0)
+            lon_padding = max((lon_max - lon_min) * 0.1, 1.0)
+            
+            southwest = [lat_min - lat_padding, lon_min - lon_padding]
+            northeast = [lat_max + lat_padding, lon_max + lon_padding]
+            m.fit_bounds([southwest, northeast])
+            
+            # Vis kun valgt jordskælv
+            display_earthquakes_df = earthquakes_df[earthquakes_df['index'] == selected_eq['index']].copy()
             
         else:
-            # INITIAL VIEW: Beregn automatisk zoom til alle jordskælv
-            lat_min, lat_max = earthquakes_df['latitude'].min(), earthquakes_df['latitude'].max()
-            lon_min, lon_max = earthquakes_df['longitude'].min(), earthquakes_df['longitude'].max()
-            
-            # Beregn optimal centrum
-            center_lat = (lat_min + lat_max) / 2
-            center_lon = (lon_min + lon_max) / 2
-            
-            # Beregn automatisk zoom niveau baseret på spredning
-            lat_range = lat_max - lat_min
-            lon_range = lon_max - lon_min
-            max_range = max(lat_range, lon_range)
-            
-            # Intelligent zoom baseret på spredning
-            if max_range > 120:  # Global spredning
-                zoom_start = 2
-            elif max_range > 60:  # Continental spredning  
-                zoom_start = 3
-            elif max_range > 30:  # Regional spredning
-                zoom_start = 4
-            elif max_range > 15:  # Lokal spredning
-                zoom_start = 5
-            else:  # Meget lokal spredning
-                zoom_start = 6
-            
-            # Opret kort med beregnet zoom
+            # GLOBAL VIEW: Vis hele jorden med Asien i centrum
+            # Fast global view - ingen kompliceret beregning
             m = folium.Map(
-                location=[center_lat, center_lon],
-                zoom_start=zoom_start,
+                location=[10, 70],  # Asien centrum: 30°N, 100°E
+                zoom_start=2,
                 tiles='Esri_WorldImagery',
                 attr=' ',
-                zoom_control=False,  # Fjerner +/- knapper
-                scrollWheelZoom=True,  # Behold mouse wheel zoom
-                doubleClickZoom=True,  # Behold double-click zoom
-                dragging=True  # Behold drag funktionalitet
+                scrollWheelZoom=True,
+                doubleClickZoom=True,
+                dragging=True,
+                zoomControl=False,
+                world_copy_jump=True  # Bedre global navigation
             )
+            
+            # Ingen fit_bounds - lad kortet vise sig naturligt
+            display_earthquakes_df = earthquakes_df.copy()
         
-        # Tilføj jordskælv markører med stjerne for valgt jordskælv
-        for idx, eq in earthquakes_df.iterrows():
+        # Tilføj jordskælv markører
+        for idx, eq in display_earthquakes_df.iterrows():
             color, radius = self.get_earthquake_color_and_size(eq['magnitude'])
             
-            # Check om dette jordskælv er valgt
-            is_selected = (st.session_state.get('selected_earthquake') and 
-                        st.session_state.selected_earthquake['index'] == eq['index'])
-            
-            if is_selected:
-                # STJERNE MARKØR for valgt jordskælv
-                star_html = f"""
-                <div style="
-                    color: gold;
-                    font-size: {radius + 20}px;
-                    text-align: center;
-                    line-height: 1;
-                    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-                    filter: drop-shadow(0 0 3px rgba(255,215,0,0.8));
-                ">⭐</div>
-                """
-                
+            # Stjerne for valgt jordskælv
+            if (selected_eq and selected_eq['index'] == eq['index']):
                 folium.Marker(
                     location=[eq['latitude'], eq['longitude']],
+                    tooltip=f"⭐ VALGT: M{eq['magnitude']:.1f} - {eq['time'].strftime('%d %b %Y')}",
+                    popup=f"⭐ VALGT M {eq['magnitude']:.1f}<br>{eq['time'].strftime('%d %b %Y')}",
                     icon=folium.DivIcon(
-                        html=star_html,
-                        icon_size=(radius + 15, radius + 15),
-                        icon_anchor=((radius + 15)//2, (radius + 15)//2)
-                    ),
-                    tooltip=f"✅ VALGT: M{eq['magnitude']:.1f} - {eq['time'].strftime('%d %b %Y')}",
-                    popup=f"⭐ VALGT JORDSKÆLV ⭐<br>M {eq['magnitude']:.1f}{eq['time'].strftime('%d %b %Y %H:%M')}"
+                        html='<div style="font-size: 20px; text-align: center;">⭐</div>',
+                        icon_size=(20, 20),
+                        icon_anchor=(10, 10)
+                    )
                 ).add_to(m)
-                
             else:
-                # NORMAL CIRKEL MARKØR for ikke-valgte jordskælv
+                # Normal cirkel markør
                 folium.CircleMarker(
                     location=[eq['latitude'], eq['longitude']],
-                    radius=radius + 3,
+                    radius=radius,
                     tooltip=f"M{eq['magnitude']:.1f} - {eq['time'].strftime('%d %b %Y')} (Klik for stationer)",
                     color='black',
-                    opacity=0.4,
+                    opacity=0.6,
                     fillColor=color,
                     fillOpacity=0.8,
-                    weight=2,
-                    popup=f"M{eq['magnitude']:.1f} - {eq['time'].strftime('%d %b %Y')}"
+                    weight=1
                 ).add_to(m)
         
-        # Tilføj station markører som nummererede trekanter
-        if stations and st.session_state.get('show_stations', False):
+        # RETTET: Tilføj stationer med golden border og rød selektion
+        if stations and show_stations:
             for i, station in enumerate(stations):
                 station_id = i + 1
                 
-                # Fremhæv valgt station
+                # Bestem farver baseret på selektion
                 if (st.session_state.get('selected_station') and 
                     st.session_state.selected_station['station'] == station['station']):
-                    triangle_color = 'darkred'
+                    # RØD for valgt station
+                    triangle_color = 'red'
                     text_color = 'white'
                 else:
+                    # BLÅ for ikke-valgte stationer
                     triangle_color = 'blue'
                     text_color = 'white'
                 
-                # CSS til custom trekant markør med nummer
-                triangle_html = f"""
+                # RETTET: Custom HTML til trekant med GOLDEN kant og centreret nummer
+                triangle_html = f'''
                 <div style="
                     width: 0; 
                     height: 0; 
-                    border-left: 12px solid transparent;
-                    border-right: 12px solid transparent;
-                    border-bottom: 20px solid {triangle_color};
+                    border-left: 14px solid transparent;
+                    border-right: 14px solid transparent;
+                    border-bottom: 22px solid gold;
                     position: relative;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
+                    cursor: pointer;
+                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
                 ">
                     <div style="
+                        width: 0; 
+                        height: 0; 
+                        border-left: 11px solid transparent;
+                        border-right: 11px solid transparent;
+                        border-bottom: 18px solid {triangle_color};
                         position: absolute;
-                        top: 6px;
-                        left: -6px;
-                        color: {text_color};
-                        font-weight: bold;
-                        font-size: 10px;
-                        text-align: center;
-                        width: 12px;
-                    ">{station_id}</div>
+                        top: 2px;
+                        left: -11px;
+                        cursor: pointer;
+                    ">
+                        <div style="
+                            position: absolute;
+                            top: 6px;
+                            left: -5.5px;
+                            width: 11px;
+                            height: 12px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: {text_color};
+                            font-weight: bold;
+                            font-size: 10px;
+                            text-align: center;
+                            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+                            line-height: 1;
+                        ">{station_id}</div>
+                    </div>
                 </div>
-                """
+                '''
                 
-                # Tooltip med data kvalitets information
+                # Tooltip tekst med station info
                 source_info = station.get('data_source', 'UNKNOWN')
-                tooltip_text = f"Station {station_id}: {station['network']}.{station['station']} ({station['distance_km']:.0f} km)<br> - klik på listen til højre -"
-                if source_info == 'IRIS_INVENTORY':
+                tooltip_text = f"{station['network']}.{station['station']} ({station['distance_km']:.0f} km)<br> - klik på listen til højre -"
+                if 'IRIS_INVENTORY' in source_info:
                     tooltip_text += " ✅ IRIS Verified"
-                elif source_info == 'FALLBACK_LIST':
+                elif 'FALLBACK' in source_info:
                     tooltip_text += " ⚠️ Fallback List"
                 
-                # Tilføj custom marker
+                # Tilføj custom marker med korrekt størrelse
                 folium.Marker(
                     location=[station['latitude'], station['longitude']],
                     icon=folium.DivIcon(
                         html=triangle_html,
-                        icon_size=(24, 20),
-                        icon_anchor=(12, 20)
+                        icon_size=(28, 24),
+                        icon_anchor=(14, 24)
                     ),
                     tooltip=tooltip_text
                 ).add_to(m)
-        
-        # DYNAMISK TITEL BASERET PÅ TILSTAND
-        antal_jordskælv = len(earthquakes_df)
-        magnitude_threshold = st.session_state.get('magnitude_threshold', 6.5)
-        selected_eq = st.session_state.get('selected_earthquake')
-
-        # BESTEM TITEL BASERET PÅ TILSTAND
-        if selected_eq and stations and st.session_state.get('show_stations', False):
-            # TILSTAND: Jordskælv valgt + stationer vises
-            eq_mag = selected_eq['magnitude']
-            eq_date = selected_eq['time'].strftime('%d %b %Y')
-            antal_stationer = len(stations)
-            
-            title_text = f"🌍 Valgt jordskælv: M{eq_mag:.1f} - {eq_date} "
-            
-        else:
-            # TILSTAND: Standard oversigt
-            title_text = f"🌍 De nyeste {antal_jordskælv} jordskælv med M>{magnitude_threshold}"
-
-        # DIN SAMME STYLING
-        title_html = f'''
-        <div style="
-            position: fixed;
-            top: 20px;
-            left: 20%;
-            transform: translateX(-50%);
-            background-color: rgba(255, 255, 255, 0.42);
-            border-radius: 10px;
-            padding: 5px 10px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-            z-index: 9999;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 15px;
-            color: #2c3e50;
-            text-align: center;
-            border: 1px solid rgba(0,0,0,0.1);
-        ">
-        <strong>{title_text}</strong>
-        </div>
-        '''
-
-        m.get_root().html.add_child(folium.Element(title_html))   
-        
-        
-        # Tilføj professionel magnitude legend - EFTER kort er færdigt
+        # TILFØJET: Signaturforklaring (legend) med opdaterede farver
         legend_html = '''
         <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 100px; height: 180px; 
-                    background-color: white; border:2px solid grey; z-index:9999; 
-                    font-size:12px; padding: 10px; border-radius: 5px;
-                    box-shadow: 0 0 15px rgba(0,0,0,0.2);">
-        <p style="margin: 0; font-weight: bold; text-align: center; font-size: 14px;">Magnitude</p>
-        <hr style="margin: 4px 0;">
-        <p style="margin: 2px 0;"><span style="color: darkred; font-size: 18px;">●</span> M ≥ 8.0 </p>
-        <p style="margin: 2px 0;"><span style="color: red; font-size: 16px;">●</span> M 7.5-7.9 </p>
-        <p style="margin: 2px 0;"><span style="color: orange; font-size: 14px;">●</span> M 7.0-7.4 </p>
-        <p style="margin: 2px 0;"><span style="color: #DAA520; font-size: 12px;">●</span> M 6.5-6.9 </p>
-        <p style="margin: 2px 0;"><span style="color: green; font-size: 10px;">●</span> M < 6.5 </p>
-        <p style="margin: 2px 0;"><span style="color: gold; font-size: 14px;">⭐</span> Valgt</p>
-        <hr style="margin: 5px 0;">
+                    top: 80px; left: 10px; width: 105px; height: 175px; 
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border: 2px solid grey; z-index: 9999; font-size: 12px;
+                    border-radius: 5px; padding: 10px;
+                    ">
+        <p style="margin: 0; font-weight: bold; text-align: center;">Magnitude</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:purple"></i> M ≥ 8.0</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:darkred"></i> M 7.5-7.9</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:red"></i> M 7.0-7.4</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:orange"></i> M 6.5-6.9</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:yellow"></i> M 6.0-6.4</p>
+        <p style="margin: 2px 0;"><i class="fa fa-circle" style="color:lightgreen"></i> M 5.0-5.9</p>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">⭐ = Valgt</p>
         </div>
         '''
-        
-        # Tilføj legend til kort - HELT til sidst
         m.get_root().html.add_child(folium.Element(legend_html))
-        
         return m
-    
     def process_earthquake_click(self, clicked_lat, clicked_lon, earthquakes_df):
-        """
-        Processerer bruger klik på jordskælv markører med intelligent matching.
-        
-        Finder nærmeste jordskælv til klik position og håndterer selection logic.
-        Implementerer intelligent afstands threshold og automatic station loading.
-        
-        Args:
-            clicked_lat (float): Klik latitude
-            clicked_lon (float): Klik longitude  
-            earthquakes_df (DataFrame): Tilgængelige jordskælv
-            
-        Returns:
-            bool: True hvis valid earthquake selection, False ellers
-            
-        Note:
-            - Bruger euklidisk afstand for hurtighed (acceptable for kort zoom)
-            - 3.0 grad threshold for click tolerance 
-            - Automatisk station loading ved ny selection
-            - Toggle behavior for allerede valgte jordskælv
-        """
+        """Fixed version med bedre afstands tolerance."""
         try:
+            print(f"DEBUG: Processing earthquake click at {clicked_lat}, {clicked_lon}")
+            
             closest_eq = None
             min_distance = float('inf')
             
-            # Find nærmeste jordskælv til klik position
+            # Find nærmeste jordskælv
             for _, eq in earthquakes_df.iterrows():
-                # Simpel euklidisk afstand (acceptable for zoom levels brugt)
                 distance = ((eq['latitude'] - clicked_lat)**2 + (eq['longitude'] - clicked_lon)**2)**0.5
                 if distance < min_distance:
                     min_distance = distance
                     closest_eq = eq.to_dict()
             
-            # Kontroller om klik er tæt nok på et jordskælv
-            if closest_eq and min_distance < 3.0:  # 3 grad tolerance
+            print(f"DEBUG: Closest earthquake: {closest_eq['magnitude'] if closest_eq else 'None'}, distance: {min_distance}")
+            
+            # ØGET TOLERANCE: Fra 3.0 til 10.0 grader
+            if closest_eq and min_distance < 10.0:  # ÆNDRET fra 3.0
                 current_eq = st.session_state.get('selected_earthquake')
                 
-                # Check om dette er en ny selection
+                print(f"DEBUG: Current selected: {current_eq['index'] if current_eq else 'None'}")
+                print(f"DEBUG: New earthquake: {closest_eq['index']}")
+                
                 if not current_eq or current_eq['index'] != closest_eq['index']:
-                    # Ny jordskælv valgt - reset alt relateret state
+                    print("DEBUG: NEW EARTHQUAKE SELECTED - SETTING STATE")
+                    
+                    # Explicit state reset
                     st.session_state.selected_earthquake = closest_eq
                     st.session_state.selected_station = None
                     st.session_state.waveform_data = None
                     st.session_state.show_analysis = False
-                    st.session_state.station_list = []
                     st.session_state.show_stations = False
+                    st.session_state.station_list = []
                     
-                    # Start automatisk station søgning
-                    new_stations = self.data_manager.find_stations_for_earthquake(closest_eq)
-                    if new_stations:
-                        st.session_state.station_list = new_stations
-                        st.session_state.show_stations = True
+                    # Set pending flag
+                    st.session_state.pending_station_search = True
                     
+                    print(f"DEBUG: State set - pending_station_search: {st.session_state.pending_station_search}")
                     return True
                 else:
-                    # Samme jordskælv klikket igen - toggle station visning
+                    print("DEBUG: Same earthquake clicked - toggling stations")
                     if not st.session_state.get('show_stations', False):
                         st.session_state.show_stations = True
                     return True
+            else:
+                print(f"DEBUG: No earthquake found in range (distance: {min_distance}, limit: 10.0)")
             
             return False
             
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Exception in process_earthquake_click: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def handle_earthquake_click(self, map_data, earthquakes_df):
-        """
-        Håndterer jordskælv klik detektion fra Folium kort.
-        
-        Parser Streamlit-Folium return data for at detektere bruger klik
-        på jordskælv markører og trigger appropriate actions.
-        
-        Args:
-            map_data (dict): Return data fra st_folium
-            earthquakes_df (DataFrame): Tilgængelige jordskælv
-            
-        Returns:
-            bool: True hvis valid klik detekteret og processeret
-            
-        Note:
-            Håndterer både object clicks og general map clicks
-            for maksimal bruger responsiveness.
-        """
+        """Håndterer jordskælv klik detektion fra Folium kort - OPTIMERET VERSION."""
         try:
             if not map_data or not map_data.get("last_clicked"):
                 return False
@@ -2752,178 +2540,24 @@ class StreamlinedSeismicApp:
             
         except Exception:
             return False
-    
-    def create_main_interface(self):
-        """
-        Opretter hovedbrugerinterface med kort og kontrol panel.
-        
-        Implementerer responsive 2-kolonne layout:
-        - Venstre: Interaktivt Folium kort med jordskælv og stationer
-        - Højre: Kontrol panel med magnitude slider og station selection
-        
-        Features:
-        - Real-time earthquake/station click detection
-        - Automatic magnitude filtering med data reload
-        - Station quality indicators (IRIS verified vs fallback)
-        - Progressive disclosure (kun vis relevante kontroller)
-        - Status feedback til bruger guidance
-        """
-        df = st.session_state.earthquake_df
-        if df.empty:
-            if st.session_state.data_loaded == False:
-                st.warning("⚠️ Ingen jordskælv data tilgængelig")
-                if st.button("🔄 Prøv igen"):
-                    self.load_initial_data()
-                    st.rerun()
-            return
-        
-        
-        # Responsive 2-kolonne layout
-        col1, col2 = st.columns([3, 1])  # 60/40 split for optimal balance
-        
-        with col1:
-            # Generer kort med current earthquake/station state
-            stations = st.session_state.get('station_list', []) if st.session_state.get('show_stations', False) else []
-            earthquake_map = self.create_optimized_map(df, stations)
-            
-            if earthquake_map is not None:
-                map_container = st.container()
-                with map_container:
-                    # Render interaktivt kort med click detection
-                    map_data = st_folium(
-                        earthquake_map, 
-                        width=950, 
-                        height=650,
-                        returned_objects=["last_object_clicked", "last_clicked"],
-                        key="main_map"
-                    )
-                
-                # Processer alle typer af klik events
-                click_detected = self._process_map_clicks(map_data, df)
-                if click_detected:
-                    st.rerun()  # Trigger UI update efter selection change
-        
-        with col2:
-            # Magnitude threshold kontrol med automatic reload
-            new_magnitude = st.slider(
-                "Min. Magnitude",
-                min_value=5.0,
-                max_value=8.0,
-                value=st.session_state.magnitude_threshold,
-                step=0.1,
-                key="mag_slider",
-                help="Højere værdi = kraftigere jordskælv"
-            )
-            
-            # Check for magnitude change og reload data hvis nødvendigt
-            if new_magnitude != st.session_state.magnitude_threshold:
-                st.session_state.magnitude_threshold = new_magnitude
-                # Reset all state ved magnitude change
-                st.session_state.data_loaded = False
-                st.session_state.selected_earthquake = None
-                st.session_state.selected_station = None
-                st.session_state.show_stations = False
-                st.session_state.show_analysis = False
-                st.session_state.waveform_data = None
-                st.session_state.station_list = []
-                self.load_initial_data()
-                st.rerun()
-            
-            # Dynamic status feedback baseret på current state
-            if st.session_state.get('show_analysis'):
-                st.markdown("**🟢 Analyse klar**")
-            elif st.session_state.get('selected_earthquake'):
-                selected_eq = st.session_state.get('selected_earthquake')
-                st.markdown(f"**⭐ M{selected_eq['magnitude']:.1f} - {selected_eq['time'].strftime('%d %b %Y')} | {selected_eq['depth_km']:.1f} km dybde**")
-                st.markdown("**Vælg en analyse-klar station:**")
-            else:
-                st.markdown("**🔴 Klik på et jordskælv på kortet**")
-            
-            #st.markdown("---")
-            
-            # Station selection interface (kun vis når relevant)
-            selected_eq = st.session_state.get('selected_earthquake')
-            selected_station = st.session_state.get('selected_station')
-            stations = st.session_state.get('station_list', [])
-            
-            if selected_eq and stations:
-                # Station kvalitets information
-                iris_verified = sum(1 for s in stations if s.get('data_source') == 'IRIS_INVENTORY')
-                fallback_count = len(stations) - iris_verified
-                
-                
-                # Station selection knapper med kvalitets indikatorer
-                for i, station in enumerate(stations):
-                    station_id = i + 1
-                    is_selected = selected_station and station['station'] == selected_station['station']
-                    
-                    # Data kvalitets indikator
-                    source_indicator = "✅" if station.get('data_source') == 'IRIS_INVENTORY' else "📊"
-                    button_color = "🔴" if is_selected else "🔵"
-                    button_text = f"{button_color} {station_id}: {station['network']}.{station['station']} ({station['distance_km']:.0f}km) {source_indicator}"
-                    
-                    # Station selection handling
-                    if st.button(button_text, key=f"analysis_station_{i}", use_container_width=True):
-                        # Reset analysis state for ny station
-                        st.session_state.waveform_data = None
-                        st.session_state.show_analysis = False
-                        st.session_state.selected_station = station
-                        
-                        # Download data med user feedback
-                        with st.spinner(f"📡 Henter analyse data fra {station['network']}.{station['station']}..."):
-                            waveform_data = self.data_manager.download_waveform_data(selected_eq, station)
-                            
-                            if waveform_data:
-                                st.session_state.waveform_data = waveform_data
-                                st.session_state.show_analysis = True
-                                st.success(f"✅ Analyse klar! Komponenter: {', '.join(waveform_data.get('available_components', []))}")
-                                
-                                # Vis kun timing problemer hvis de eksisterer
-                                if 'timing_validation' in waveform_data:
-                                    validation = waveform_data['timing_validation']
-                                    if not validation['is_valid']:
-                                        st.warning(f"⚠️ Timing problem: {validation['message']}")
-                                        if validation['info']:
-                                            info = validation['info']
-                                            expected_range = info['realistic_p_range']
-                                            st.info(f"💡 Forventet P-ankomst: {expected_range[0]:.1f} - {expected_range[1]:.1f}s")
-                                
-                                st.rerun()
-                            else:
-                                st.error("❌ Ingen data kunne hentes")
-                                st.session_state.selected_station = None
-                                #st.info(f"🎯 **{len(stations)} analyse-klar stationer** (800-2200 km)")
-                if iris_verified > 0:
-                    st.success(f"✅ {iris_verified} IRIS verificerede")
-                if fallback_count > 0:
-                    st.info(f"ℹ️ {fallback_count} fallback stationer")
-                
-            else:
-                if selected_eq:
-                    st.info("🔍 Ingen analyse-klar stationer fundet for dette jordskælv")
-                # Vis summary statistik når ingen selection
-                st.metric("Tilgængelige jordskælv", f"{len(df)}")
-    
+  
     def _process_map_clicks(self, map_data, df):
-        """
-        Centraliseret håndtering af alle map click events.
-        
-        Processerer både object clicks og general clicks fra Folium kort
-        for at maksimere click detection reliability.
-        
-        Args:
-            map_data (dict): Folium return data
-            df (DataFrame): Earthquake data
-            
-        Returns:
-            bool: True hvis nogen click blev processeret
-        """
+        """Forbedret klik håndtering med bedre debugging."""
         if not map_data:
             return False
-            
-        click_detected = False
         
-        # Håndter object clicks (prioriteret)
+        # DEBUG: Log hvad vi modtager
+        print(f"DEBUG: Map data keys: {map_data.keys()}")
+        if map_data.get("last_clicked"):
+            print(f"DEBUG: last_clicked: {map_data['last_clicked']}")
+        if map_data.get("last_object_clicked"):
+            print(f"DEBUG: last_object_clicked: {map_data['last_object_clicked']}")
+        
+        click_detected = False
+        clicked_lat = None
+        clicked_lon = None
+        
+        # Prioriteret klik håndtering - prøv object først, så general
         if map_data.get("last_object_clicked"):
             try:
                 clicked_obj = map_data["last_object_clicked"]
@@ -2931,34 +2565,1250 @@ class StreamlinedSeismicApp:
                     if "lat" in clicked_obj and "lng" in clicked_obj:
                         clicked_lat = clicked_obj["lat"]
                         clicked_lon = clicked_obj["lng"]
-                        click_detected = self.process_earthquake_click(clicked_lat, clicked_lon, df)
-            except:
-                pass
+                        print(f"DEBUG: Object click detected at {clicked_lat}, {clicked_lon}")
+            except Exception as e:
+                print(f"DEBUG: Object click failed: {e}")
         
-        # Håndter general clicks som fallback
-        if not click_detected and map_data.get("last_clicked"):
+        # Fallback til general click
+        if clicked_lat is None and map_data.get("last_clicked"):
             try:
-                if self.handle_earthquake_click(map_data, df):
-                    click_detected = True
-            except:
-                pass
+                last_clicked = map_data["last_clicked"]
+                if isinstance(last_clicked, dict) and "lat" in last_clicked and "lng" in last_clicked:
+                    clicked_lat = last_clicked["lat"]
+                    clicked_lon = last_clicked["lng"]
+                    print(f"DEBUG: General click detected at {clicked_lat}, {clicked_lon}")
+            except Exception as e:
+                print(f"DEBUG: General click failed: {e}")
+        
+        # Processer klik hvis vi har koordinater
+        if clicked_lat is not None and clicked_lon is not None:
+            print(f"DEBUG: Processing click at {clicked_lat}, {clicked_lon}")
+            
+            # CHECK: Er dette et nyt klik eller gentagelse?
+            last_processed_click = st.session_state.get('last_processed_click')
+            current_click = (round(clicked_lat, 6), round(clicked_lon, 6))
+            
+            if last_processed_click == current_click:
+                print("DEBUG: Duplicate click detected - ignoring")
+                return False
+            
+            # Gem dette klik som processed
+            st.session_state.last_processed_click = current_click
+            
+            click_detected = self.process_earthquake_click(clicked_lat, clicked_lon, df)
+            print(f"DEBUG: Click processing result: {click_detected}")
         
         return click_detected
-    
-    
-    def create_enhanced_analysis_window(self):
+
+    def create_main_interface(self):
+        """Hovedinterface med clean persistent fejlhåndtering."""
+        df = st.session_state.earthquake_df
+        
+        # FØRST: Vis eventuelle persistent fejlbeskeder
+        if 'station_error_message' in st.session_state:
+            error_data = st.session_state.station_error_message
+            st.error(f"❌ {error_data['message']}")
+            
+            # Vis detaljer hvis tilgængelig
+            if error_data.get('details'):
+                with st.expander("📋 Se detaljer om problemet"):
+                    for detail in error_data['details']:
+                        st.write(f"• {detail}")
+            
+            # Vis forslag
+            if error_data.get('suggestions'):
+                st.info("💡 **Hvad kan du gøre:**")
+                for suggestion in error_data['suggestions']:
+                    st.write(f"• {suggestion}")
+            
+            # Ryd besked knap
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("✕ Luk besked", key="clear_error"):
+                    del st.session_state.station_error_message
+                    st.rerun()
+        
+        # TRIN 2: Check om vi skal søge stationer EFTER zoom
+        if st.session_state.get('pending_station_search', False):
+            selected_eq = st.session_state.get('selected_earthquake')
+            if selected_eq:
+                # Søg stationer nu hvor kortet er zoomet
+                with st.spinner(f"Søger stationer for M{selected_eq['magnitude']:.1f}..."):
+                    try:
+                        new_stations = self.data_manager.find_stations_for_earthquake(selected_eq)
+                        if new_stations:
+                            st.session_state.station_list = new_stations
+                            st.session_state.show_stations = True
+                        else:
+                            st.session_state.station_list = []
+                            st.session_state.show_stations = False
+                    except:
+                        st.session_state.station_list = []
+                        st.session_state.show_stations = False
+                
+                # Fjern pending flag og trigger rerun
+                st.session_state.pending_station_search = False
+                st.rerun()
+        
+        # Layout
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            # KORT SEKTION
+            if df.empty:
+                # Vis hjælpsom information ved tomme resultater
+                magnitude_range = st.session_state.magnitude_range
+                year_range = st.session_state.year_range
+                depth_range = st.session_state.depth_range
+                
+                min_mag, max_mag = magnitude_range
+                start_year, end_year = year_range
+                min_depth, max_depth = depth_range
+                
+                st.warning("🔍 Ingen jordskælv fundet med disse kriterier")
+                st.info(f"**Søgte:** M{min_mag:.1f}-{max_mag:.1f}, {start_year}-{end_year}, {min_depth}-{max_depth}km dybde")
+                
+                # Intelligente forslag baseret på kriterier
+                suggestions = []
+                if min_mag > 7.0:
+                    suggestions.append("💡 Prøv lavere magnitude: Store jordskælv (M>7) er sjældne")
+                if max_depth < 100:
+                    suggestions.append("💡 Udvid dybde range: Mange jordskælv er dybere end 100km")
+                if (end_year - start_year) < 5:
+                    suggestions.append("💡 Udvid tidsperiode: Prøv flere år for bedre resultater")
+                
+                if suggestions:
+                    for suggestion in suggestions[:2]:
+                        st.caption(suggestion)
+                
+                # Hurtige løsninger
+                st.markdown("**⚡ Hurtige løsninger:**")
+                col_a, col_b, col_c = st.columns(3)
+                
+                with col_a:
+                    if st.button("🌍 Populære", use_container_width=True, key="quick_popular"):
+                        st.session_state.magnitude_range = (6.0, 9.0)
+                        st.session_state.year_range = (2020, 2025)
+                        st.session_state.depth_range = (1, 200)
+                        st.session_state.max_earthquakes = 50
+                        st.session_state.force_reload = True  # TILFØJET
+                        with st.spinner("🔍 Søger populære jordskælv..."):
+                            self.load_initial_data()
+                        st.rerun()
+                
+                with col_b:
+                    if st.button("🔥 Store (M7+)", use_container_width=True, key="quick_large"):
+                        st.session_state.magnitude_range = (7.0, 9.0)
+                        st.session_state.year_range = (2000, 2025)
+                        st.session_state.depth_range = (1, 700)
+                        st.session_state.max_earthquakes = 100
+                        st.session_state.force_reload = True  # TILFØJET
+                        with st.spinner("🔍 Søger store jordskælv..."):
+                            self.load_initial_data()
+                        st.rerun()
+                
+                with col_c:
+                    if st.button("🏔️ Overfladiske", use_container_width=True, key="quick_shallow"):
+                        st.session_state.magnitude_range = (6.0, 8.0)
+                        st.session_state.year_range = (2015, 2025)
+                        st.session_state.depth_range = (1, 50)
+                        st.session_state.max_earthquakes = 75
+                        st.session_state.force_reload = True  # TILFØJET
+                        with st.spinner("🔍 Søger overfladiske jordskælv..."):
+                            self.load_initial_data()
+                        st.rerun()
+                        
+                return
+            else:
+                # Vis kort når der ER data
+                stations = st.session_state.get('station_list', []) if st.session_state.get('show_stations', False) else []
+                earthquake_map = self.create_optimized_map(df, stations)
+                
+                if earthquake_map is not None:
+                    # Brug fast key for stabilitet
+                    map_key = "earthquake_map"
+                    
+                    map_data = st_folium(
+                        earthquake_map, 
+                        width=950, 
+                        height=650,
+                        returned_objects=["last_object_clicked", "last_clicked"],
+                        key=map_key
+                    )
+                    
+                    # Klik håndtering
+                    if map_data and (map_data.get("last_clicked") or map_data.get("last_object_clicked")):
+                        click_detected = self._process_map_clicks(map_data, df)
+                        if click_detected:
+                            st.rerun()
+        
+        with col2:
+            # HØJRE SIDE MENU
+            
+            # Filter menu
+            has_selected_earthquake = st.session_state.get('selected_earthquake') is not None
+            shows_stations = st.session_state.get('show_stations', False)
+            menu_expanded = not (has_selected_earthquake and shows_stations)
+            
+            if has_selected_earthquake and shows_stations:
+                header_text = "SØG EFTER JORDSKÆLV"
+            else:
+                header_text = "**← Klik på et jordskælv på kortet**"
+            
+            with st.expander(header_text, expanded=menu_expanded):
+                # CSS for slider farver
+                st.markdown("""
+                <style>
+                div[data-testid="stSlider"]:has(label:contains("Magnitude")) .stSlider > div > div > div > div {
+                    background-color: #1f77b4 !important;
+                }
+                div[data-testid="stSlider"]:has(label:contains("Årstal")) .stSlider > div > div > div > div {
+                    background-color: #2ca02c !important;
+                }
+                div[data-testid="stSlider"]:has(label:contains("Dybde")) .stSlider > div > div > div > div {
+                    background-color: #9467bd !important;
+                }
+                div[data-testid="stSlider"]:has(label:contains("Max antal")) .stSlider > div > div > div > div {
+                    background-color: #ff7f0e !important;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # FIXED SLIDERS - Tilføj on_change=None til alle
+                temp_magnitude_range = st.slider(
+                    "Magnitude", 5.0, 9.0, st.session_state.magnitude_range, 0.1,
+                    key="mag_range_slider_temp", 
+                    help="Vælg minimum og maksimum magnitude", 
+                    format="%.1f",
+                    on_change=None  # TILFØJET - forhindrer auto-trigger
+                )
+                
+                from datetime import datetime
+                current_year = datetime.now().year
+                temp_year_range = st.slider(
+                    "Årstal", 1990, current_year, st.session_state.year_range, 1,
+                    key="year_range_slider_temp", 
+                    help=f"Vælg periode fra 1990 til {current_year}", 
+                    format="%d",
+                    on_change=None  # TILFØJET - forhindrer auto-trigger
+                )
+                
+                temp_depth_range = st.slider(
+                    "Dybde (km)", 1, 700, st.session_state.depth_range, 1,
+                    key="depth_range_slider_temp", 
+                    help="Vælg minimum og maksimum jordskælv dybde i km", 
+                    format="%d",
+                    on_change=None  # TILFØJET - forhindrer auto-trigger
+                )
+                
+                temp_max_earthquakes = st.slider(
+                    "Max antal jordskælv", 1, 500, st.session_state.get('max_earthquakes', 25), 1,
+                    key="max_earthquakes_slider_temp", 
+                    help="Maksimalt antal jordskælv der vises på kortet", 
+                    format="%d",
+                    on_change=None  # TILFØJET - forhindrer auto-trigger
+                )
+                
+                # Check for changes
+                settings_changed = (
+                    temp_magnitude_range != st.session_state.magnitude_range or 
+                    temp_year_range != st.session_state.year_range or
+                    temp_depth_range != st.session_state.depth_range or
+                    temp_max_earthquakes != st.session_state.get('max_earthquakes', 25)
+                )
+                
+                if settings_changed:
+                    st.markdown('<p style="color: #999999; font-size: 14px; margin: 2px 0;">Indstillinger ændret...</p>', unsafe_allow_html=True)
+                    update_button = st.button("**Opdater**", key="update_earthquake_btn", use_container_width=True, type="primary")
+                else:
+                    update_button = False
+                
+                if update_button and settings_changed:
+                    # Opdater session state
+                    st.session_state.magnitude_range = temp_magnitude_range
+                    st.session_state.year_range = temp_year_range
+                    st.session_state.depth_range = temp_depth_range
+                    st.session_state.max_earthquakes = temp_max_earthquakes
+                    
+                    # TILFØJET - Force reload flag
+                    st.session_state.force_reload = True
+                    
+                    # Reset state
+                    st.session_state.selected_earthquake = None
+                    st.session_state.selected_station = None
+                    st.session_state.show_stations = False
+                    st.session_state.show_analysis = False
+                    st.session_state.waveform_data = None
+                    st.session_state.station_list = []
+                    st.session_state.pending_station_search = False
+                    
+                    # Ryd eventuelle fejlbeskeder
+                    if 'station_error_message' in st.session_state:
+                        del st.session_state.station_error_message
+                    
+                    with st.spinner("🔍 Søger jordskælv..."):
+                        self.load_initial_data()
+                    st.rerun()
+
+            # STATION MENU
+            selected_eq = st.session_state.get('selected_earthquake')
+            selected_station = st.session_state.get('selected_station')
+            stations = st.session_state.get('station_list', [])
+            
+            if selected_eq:
+                if selected_station:
+                    header_text = f"VÆLG NY STATION"
+                else:
+                    header_text = f"VÆLG STATION"
+                
+                with st.expander(header_text, expanded=not selected_station):
+                    st.markdown(f"⭐ M{selected_eq['magnitude']:.1f} | Dybde {selected_eq['depth_km']:.1f} km")
+                    
+                    if stations:
+                        st.markdown('<p style="font-size: 14px; margin: 5px 0;">TILGÆNGELIGE STATIONER:</p>', unsafe_allow_html=True)
+                        
+                        iris_verified = sum(1 for s in stations if s.get('data_source') == 'IRIS_INVENTORY')
+                        fallback_count = len(stations) - iris_verified
+                        
+                        # STATION BUTTONS med clean error handling
+                        for i, station in enumerate(stations):
+                            station_id = i + 1
+                            is_selected = selected_station and station['station'] == selected_station['station']
+                            
+                            source_indicator = "✅" if station.get('data_source') == 'IRIS_INVENTORY' else "📊"
+                            button_color = "🔴" if is_selected else "🔵"
+                            button_text = f"{button_color} {station_id}: {station['network']}.{station['station']} ({station['distance_km']:.0f}km) {source_indicator}"
+                            
+                            if st.button(button_text, key=f"analysis_station_{i}", use_container_width=True):
+                                # Ryd tidligere fejlbeskeder
+                                if 'station_error_message' in st.session_state:
+                                    del st.session_state.station_error_message
+                                
+                                # Reset analysis state
+                                st.session_state.waveform_data = None
+                                st.session_state.show_analysis = False
+                                st.session_state.selected_station = station
+                                
+                                # CLEAN download handling
+                                with st.spinner(f"📡 Henter data fra {station['network']}.{station['station']}..."):
+                                    waveform_data = self.data_manager.download_waveform_data(selected_eq, station)
+                                
+                                if waveform_data:
+                                    # SUCCESS CASE
+                                    st.session_state.waveform_data = waveform_data
+                                    st.session_state.show_analysis = True
+                                    st.session_state.auto_scroll_to_analysis = True  # TILFØJET: Flag for auto-scroll
+                                    
+                                    # Vis success message kort
+                                    components = waveform_data.get('available_components', [])
+                                    sample_rate = waveform_data.get('sampling_rate', 'N/A')
+                                    st.success(f"✅ Data hentet! Komponenter: {', '.join(components)} @ {sample_rate} Hz")
+                                    
+                                    # Timing validation feedback
+                                    if 'timing_validation' in waveform_data:
+                                        validation = waveform_data['timing_validation']
+                                        if not validation['is_valid']:
+                                            st.warning(f"⚠️ {validation['message']}")
+                                            if validation['info']:
+                                                info = validation['info']
+                                                expected_range = info['realistic_p_range']
+                                                st.info(f"💡 Forventet P-ankomst: {expected_range[0]:.1f}-{expected_range[1]:.1f}s")
+                                    
+                                    # FORBEDRET AUTO-SCROLL - med længere delay
+                                    st.markdown("""
+                                    <script>
+                                    setTimeout(function() {
+                                        const analysisElement = document.getElementById('analysis-section');
+                                        if (analysisElement) {
+                                            analysisElement.scrollIntoView({ 
+                                                behavior: 'smooth',
+                                                block: 'start'
+                                            });
+                                        }
+                                    }, 2000);
+                                    </script>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    st.rerun()
+
+                                    
+                                else:
+                                    # FAILURE CASE - sæt persistent detailed error
+                                    st.session_state.selected_station = None
+                                    st.session_state.waveform_data = None
+                                    st.session_state.show_analysis = False
+                                    
+                                    # Sæt persistent error message
+                                    st.session_state.station_error_message = {
+                                        'message': f"Ingen data tilgængelig for {station['network']}.{station['station']}",
+                                        'details': [
+                                            f"Station: {station['network']}.{station['station']} ({station['distance_km']:.0f} km fra epicenter)",
+                                            f"Jordskælv: M{selected_eq['magnitude']:.1f} den {selected_eq['time'].strftime('%Y-%m-%d %H:%M:%S')} UTC",
+                                            f"Søgte tidsperiode: 30 minutter fra jordskælv tidspunkt",
+                                            "IRIS returnerede ingen waveform data for denne station/tidspunkt kombination"
+                                        ],
+                                        'suggestions': [
+                                            "Prøv en anden station fra listen ovenfor",
+                                            "Stationen var muligvis ikke operationel på jordskælv tidspunktet",
+                                            "Der kan være huller i IRIS dataarkivet for denne periode",
+                                            "Fallback stationer har ikke garanteret data tilgængelighed" if station.get('data_source') == 'ANALYSIS_READY_FALLBACK' else "IRIS verificerede stationer har generelt bedre data tilgængelighed"
+                                        ]
+                                    }
+                                    # Fjern None værdier hvis nogen
+                                    st.session_state.station_error_message['suggestions'] = [
+                                        s for s in st.session_state.station_error_message['suggestions'] if s
+                                    ]
+                                    
+                                    # INGEN rerun - lad fejlbeskeden blive synlig
+                        
+                        # Station kvalitet info
+                        if iris_verified > 0:
+                            st.success(f"✅ {iris_verified} IRIS verificerede stationer")
+                        if fallback_count > 0:
+                            st.info(f"ℹ️ {fallback_count} fallback stationer")
+                    else:
+                        # Hvis ingen stationer fundet
+                        st.warning("⚠️ Ingen analyse-klar stationer fundet for dette jordskælv")
+                        st.info("💡 Mulige årsager:")
+                        st.info("• Jordskælvet er for tæt på eller for langt fra stationer")
+                        st.info("• Ingen stationer var operationelle på tidspunktet") 
+                        st.info("• Netværksproblemer med IRIS søgning")
+                        
+                        # Tilbyd at prøve igen
+                        if st.button("🔄 Søg stationer igen", key="retry_stations"):
+                            st.session_state.pending_station_search = True
+                            st.session_state.show_stations = False
+                            st.session_state.station_list = []
+                            st.rerun()
+            else:
+                # Når ingen jordskælv er valgt
+                if not df.empty:
+                    st.metric("Tilgængelige jordskælv", f"{len(df)}")
+            
+            # ANALYSIS BUTTON - kun vis hvis data er tilgængelig OG der faktisk er noget at analysere
+            if st.session_state.get('show_analysis') and st.session_state.get('waveform_data'):
+                st.markdown("""
+                <style>
+                .anonymous-analysis-button {
+                    display: block; padding: 0.75rem 1rem; background: #f8f9fa; color: #28a745 !important;
+                    text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 16px;
+                    border: 1px solid #28a745; cursor: pointer; width: 100%; text-align: center;
+                    margin: 1rem 0; transition: all 0.3s ease;
+                }
+                .anonymous-analysis-button:hover {
+                    background: #f1f8e9; color: #218838 !important; border: 2px solid #218838;
+                    transform: translateY(-1px);
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
+                st.markdown('<a href="#analysis-section" class="anonymous-analysis-button">KLIK FOR ANALYSE</a>', unsafe_allow_html=True)
+
+    def create_useful_info_window(self):
         """
-        Opretter avanceret analyse vindue med komplet seismisk analyse suite.
+        Opretter "Nyttig Info" vindue med faglig forklaring og undervisningshjælp.
+        Erstatter den gamle brugerguide med mere fokuseret fagligt indhold.
+        """
         
-        Implementerer professionel seismisk analyse interface med:
-        - Filter kontrol panel med 7 forskellige filter typer
-        - Avancerede visualiserings optioner (SNR, FFT, P-wave analysis)
-        - Real-time Ms magnitude beregning med IASPEI standarder
-        - Excel eksport funktionalitet
-        - Multi-panel Plotly visualisering med intelligent layout
-        - Comprehensive user guidance og quality feedback
+        # ANCHOR til Nyttig Info sektion
+        st.markdown('<div id="info-section" style="scroll-margin-top: 20px;"></div>', unsafe_allow_html=True)
         
-        Dette er hjerte af seismisk analyse funktionaliteten.
+        # Header sektion
+        st.subheader("**📚 Nyttig Info & Faglig Hjælp**")
+        st.markdown("**Forklaring af faglige metoder, tolkning af data og undervisningsidéer**")
+        
+        # CSS for styling af info tabs
+        st.markdown("""
+        <style>
+        /* Styling for info tabs */
+        .info-content {
+            padding: 20px 0;
+        }
+        
+        .info-block {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            margin: 15px 0 !important;
+            border-left: 4px solid #007bff !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        }
+        
+        .physics-block {
+            background: linear-gradient(135deg, #e8f4fd, #f0f8ff) !important;
+            border-left-color: #0066cc !important;
+        }
+        
+        .processing-block {
+            background: linear-gradient(135deg, #f0fff0, #f5fffa) !important;
+            border-left-color: #28a745 !important;
+        }
+        
+        .teaching-block {
+            background: linear-gradient(135deg, #fff8dc, #fffacd) !important;
+            border-left-color: #ffc107 !important;
+        }
+        
+        .technical-block {
+            background: linear-gradient(135deg, #faf0e6, #fdf5e6) !important;
+            border-left-color: #fd7e14 !important;
+        }
+        
+        .code-example {
+            background: #f8f9fa !important;
+            padding: 15px !important;
+            border-radius: 8px !important;
+            font-family: 'Courier New', monospace !important;
+            border: 1px solid #dee2e6 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Hovedtabs for organiseret info
+        info_tab1, info_tab2, info_tab3, info_tab4 = st.tabs([
+            "🔬 Data & Fysik", "⚙️ Signal Processing", "🎓 Undervisning", "🔧 Teknisk Reference"
+        ])
+        
+        # ==========================================
+        # TAB 1: DATA & FYSIK
+        # ==========================================
+        with info_tab1:
+            st.markdown('<div class="info-content">', unsafe_allow_html=True)
+            
+            # Fra Counts til Displacement
+            st.markdown('<div class="info-block physics-block">', unsafe_allow_html=True)
+            st.markdown("## 📈 Fra Counts til Displacement")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### Instrument Counts → Ground Velocity
+                Seismometre måler elektriske impulser (digitaliserede værdier kaldet *counts*), som svarer til jordens hastighed (velocity). For at få en fysisk enhed (m/s) skal vi korrigere for instrumentets egenskaber:
+                """)
+                
+                st.markdown('<div class="code-example">', unsafe_allow_html=True)
+                st.markdown("""
+                ```
+                Ground velocity (m/s) =  
+                (Counts × A/D faktor) / (Gain × Følsomhed)
+                ```
+                """)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown("""
+                ### Ground Velocity → Displacement
+                Ønsker man at se den *faktiske bevægelse af jorden* (displacement), integrerer man signalet over tid:
+                """)
+                
+                st.markdown('<div class="code-example">', unsafe_allow_html=True)
+                st.markdown("""
+                ```
+                Displacement = ∫ Ground_velocity dt
+                ```
+                """)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("""
+            ### 📉 Response Removal – hvad sker der?
+            *Instrument response* fjernes for at give et realistisk billede af jordens bevægelser:
+            - ✅ Kompensation for instrumentets karakteristik
+            - ✅ Fjernelse af frekvens-afhængig forstærkning
+            - ✅ Konvertering til faktiske fysiske enheder (typisk: m/s eller m)
+            - ✅ **Displacement vises i millimeter** i GEOseis (for klarhed og sammenlignelighed)
+            
+            Et illustrativt skema med denne omregning kan ses i hjælpebilledet, hvor sammenhængen mellem counts og meter fremgår.
+            """)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Seismiske bølgetyper
+            st.markdown('<div class="info-block physics-block">', unsafe_allow_html=True)
+            st.markdown("## 🌊 Seismiske Bølgetyper")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                ### P-bølger (Primære)
+                **Fysik:** Longitudinale kompression/dilatation bølger
+                - **Hastighed:** ~8 km/s (først ankommende)
+                - **Bevægelse:** Frem-tilbage langs udbredelsesretning
+                - **Medium:** Fast stof, væske og gas
+                - **Polarisation:** Radial fra epicenter
+                - **Synlig på:** Alle tre komponenter
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### S-bølger (Sekundære)
+                **Fysik:** Transversale forskydningsbølger
+                - **Hastighed:** ~4.5 km/s (anden ankomst)
+                - **Bevægelse:** Side til side vinkelret på udbredelse
+                - **Medium:** Kun fast stof (stopper ved flydende kerne)
+                - **Polarisation:** Tangential til epicenter
+                - **Synlig på:** Især horisontale komponenter
+                """)
+                
+            with col3:
+                st.markdown("""
+                ### Overfladebølger
+                **Fysik:** Komplekse bølger langs jordens overflade
+                - **Hastighed:** ~3.5 km/s (sidste ankomst)
+                - **Typer:** Rayleigh (elliptisk) og Love (horizontal)
+                - **Amplitude:** Ofte største - bruges til Ms
+                - **Periode:** 10-50 sekunder
+                - **Dæmpning:** Langsom → rejser langt
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Magnitude scales
+            st.markdown('<div class="info-block physics-block">', unsafe_allow_html=True)
+            st.markdown("## 📊 Ms Magnitude Forklaring")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### IASPEI Standard Formel
+                """)
+                st.markdown('<div class="code-example">', unsafe_allow_html=True)
+                st.markdown("""
+                ```
+                Ms = log₁₀(A/T) + 1.66×log₁₀(Δ) + 3.3
+                ```
+                
+                **Parameter forklaring:**
+                - A: Maksimum amplitude i mikrometers (μm)
+                - T: Periode i sekunder (typisk 20s)
+                - Δ: Epicentral afstand i grader
+                - 1.66: Empirisk geometrisk korrektion
+                - 3.3: Empirisk absolutt kalibrering
+                """)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown("""
+                ### Klassisk vs. Moderne Ms
+                
+                **Ms Klassisk (pre-2013):**
+                - Bruger største horizontale komponent
+                - Enten North eller East - hvilket som helst er størst
+                - Historisk standard før IASPEI 2013
+                
+                **Ms_20 (IASPEI 2013 standard):**
+                - Bruger vertikal komponent
+                - Mindre påvirket af lokal geologi
+                - Mere konsistent mellem stationer
+                - **Foretrukken i moderne analyse**
+                
+                **Optimale betingelser:**
+                - Magnitude: M 6.0 - 8.5
+                - Afstand: 20° - 160° (2200-17800 km)
+                - Dybde: < 50 km (stærke overfladebølger)
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # ==========================================
+        # TAB 2: SIGNAL PROCESSING
+        # ==========================================
+        with info_tab2:
+            st.markdown('<div class="info-content">', unsafe_allow_html=True)
+            
+            # Filtrering
+            st.markdown('<div class="info-block processing-block">', unsafe_allow_html=True)
+            st.markdown("## 🎛️ Hvorfor bruge filtre?")
+            
+            st.markdown("""
+            Rå seismiske signaler indeholder ofte:
+            - **Støj** (elektrisk, atmosfærisk, menneskeskabt)
+            - **Uønskede frekvenser** (fx infralyd eller drift)
+            - **Lavfrekvente langsomme svingninger**
+            
+            **Filtre** hjælper med at fjerne støj og fremhæve det relevante signal. I GEOseis bruges typisk **Butterworth-filtre**:
+            - Lavpas, højpas eller båndpas
+            - Fase-lineære → ingen tidsforvrængning
+            - Bruges især ved detektion af P-bølger og overfladebølger
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### Filter Implementering
+                """)
+                st.markdown('<div class="code-example">', unsafe_allow_html=True)
+                st.markdown("""
+                ```python
+                # Nyquist frekvens check
+                nyquist = sampling_rate / 2.0
+                max_safe_freq = nyquist * 0.95
+                
+                # Normaliser til Nyquist
+                low_norm = low_freq / nyquist
+                high_norm = high_freq / nyquist
+                
+                # Design Butterworth filter
+                b, a = butter(order, [low_norm, high_norm], 
+                            btype='band')
+                
+                # Zero-phase filtering (bevarer timing)
+                filtered_data = filtfilt(b, a, data)
+                ```
+                """)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown("""
+                ### GEOseis Filter Typer
+                
+                **Original (0.01-25 Hz):**
+                - Kun instrument response removal
+                - Autentisk men kan være støjfyldt
+                
+                **Bredband (0.01-25 Hz):**
+                - Standard for generel analyse
+                - Balancerer støjreduktion og signal bevarelse
+                
+                **P-bølger (1.0-10.0 Hz):**
+                - Høj frekvens - fremhæver skarpe ankomster
+                
+                **S-bølger (0.5-5.0 Hz):**
+                - Medium frekvens til forskydningsbølger
+                
+                **Overfladebølger (0.02-0.5 Hz):**
+                - Lav frekvens - optimal til Ms magnitude
+                - Isolerer 10-50 sekund periode bølger
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Signal kvalitet
+            st.markdown('<div class="info-block processing-block">', unsafe_allow_html=True)
+            st.markdown("## 📈 Signal Kvalitet og SNR")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### Signal-to-Noise Ratio (SNR)
+                
+                **Definition:**
+                ```
+                SNR(dB) = 10 × log₁₀(signal_power / noise_power)
+                ```
+                
+                **Kvalitets guidelines:**
+                - **SNR > 20 dB:** Fremragende kvalitet
+                - **SNR 10-20 dB:** God kvalitet  
+                - **SNR < 10 dB:** Begrænset kvalitet
+                
+                **Beregning i GEOseis:**
+                - Støj estimeres fra pre-event data
+                - Signal analyseres i overlappende vinduer
+                - Kontinuerlig SNR monitoring
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### Spike Detection og Fjernelse
+                
+                **Modified Z-Score metode:**
+                ```
+                Modified Z-Score = 0.6745 × (x - median) / MAD
+                ```
+                hvor MAD = median(|x - median(x)|)
+                
+                **Fordele:**
+                - Robust mod outliers
+                - Bevarer signal kontinuitet
+                - Automatisk threshold (typisk 5.0)
+                
+                **Anvendelse:**
+                - Fjerner instrument glitches
+                - Bevarer ægte seismiske signaler
+                - Erstatter spikes med median-filtrerede værdier
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # ==========================================
+        # TAB 3: UNDERVISNING
+        # ==========================================
+        with info_tab3:
+            st.markdown('<div class="info-content">', unsafe_allow_html=True)
+            
+            # Undervisningseksempler
+            st.markdown('<div class="info-block teaching-block">', unsafe_allow_html=True)
+            st.markdown("## 🧪 Eksempler og idéer til undervisningsbrug")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### 🧹 1. Beregn Ms-magnitude
+                - Hent overfladebølger fra et kendt jordskælv
+                - Brug GEOseis til at finde maksimum amplitude og periode
+                - Programmet beregner Ms automatisk
+                - **Diskutér forskelle mellem målt og rapporteret Ms**
+                
+                ### 📏 2. Undersøg bølgehastigheder
+                - Find ankomsttidspunkter for P- og S-bølger på to eller flere stationer
+                - Beregn hastigheder:
+                """)
+                st.markdown('<div class="code-example">', unsafe_allow_html=True)
+                st.markdown("```\nHastighed = Afstand / Tidsforskel\n```")
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("- Sammenlign med teoretiske værdier for jordens lag")
+                
+            with col2:
+                st.markdown("""
+                ### 🕵️ 3. Find epicenter og test forståelse
+                - Brug ankomsttider til at bestemme afstande til epicenteret
+                - Anvend fx IRIS' Triangulation Tool:  
+                [https://www.iris.edu/app/triangulation](https://www.iris.edu/app/triangulation)
+                - Brug tre stationer og sammenlign med USGS-data
+                
+                ### 📊 4. Filtrering og sammenligning
+                - Undersøg signal før og efter filtrering
+                - Lad eleverne eksperimentere med filterparametre
+                - **Diskutér hvorfor visse signaldele fremhæves og andre forsvinder**
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Faglige koncepter
+            st.markdown('<div class="info-block teaching-block">', unsafe_allow_html=True)
+            st.markdown("## 📚 Faglige Koncepter til Undervisning")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                ### Fysik Koncepter
+                - **Bølgelære:** Longitudinale vs. transversale
+                - **Hastighed:** v = f × λ
+                - **Amplitude:** Energi og afstand
+                - **Frekvens/Periode:** T = 1/f
+                - **Interferens:** Konstruktiv/destruktiv
+                - **Dæmpning:** Geometrisk spredning
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### Matematik Koncepter
+                - **Logaritmer:** Magnitude skala
+                - **Trigonometri:** Bølge polarisation
+                - **Statistik:** SNR, støj analyse
+                - **Integration:** Velocity til displacement
+                - **Eksponentielle funktioner:** Dæmpning
+                - **Koordinater:** Afstand på kugleoverflade
+                """)
+                
+            with col3:
+                st.markdown("""
+                ### Geografi/Naturteknologi
+                - **Pladetektonik:** Årsager til jordskælv
+                - **Jordens struktur:** Kerne, kappe, skorpe
+                - **Naturkatastrofer:** Risiko og forebyggelse
+                - **Global overvågning:** Netværk og teknologi
+                - **Data analyse:** Fra målinger til erkendelse
+                - **Instrumentering:** Sensorer og kalibrering
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Nyttige ressourcer
+            st.markdown('<div class="info-block teaching-block">', unsafe_allow_html=True)
+            st.markdown("## 🌍 Nyttige Ressourcer")
+            
+            st.markdown("""
+            ### Interaktive Værktøjer
+            **IRIS Seismic Wave Simulator:**  
+            [https://ds.iris.edu/seismon/swaves/index.php](https://ds.iris.edu/seismon/swaves/index.php)
+            - Se hvordan bølger brydes og reflekteres i jordens lag
+            - Forklare hvorfor data kan være svære at tolke
+            - Understøtte undervisning om P- og S-bølger, overfladebølger, og "shadow zones"
+            
+            **IRIS Triangulation Tool:**  
+            [https://www.iris.edu/app/triangulation](https://www.iris.edu/app/triangulation)
+            - Praktisk epicenter bestemmelse
+            - Brug reelle stationsdata
+            
+            **IRIS WILBER3 Interface:**  
+            [https://ds.iris.edu/wilber3](https://ds.iris.edu/wilber3)
+            - Samme data som GEOseis bruger
+            - Detaljeret station information
+            - Avancerede søgemuligheder
+            """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # ==========================================
+        # TAB 4: TEKNISK REFERENCE
+        # ==========================================
+        with info_tab4:
+            st.markdown('<div class="info-content">', unsafe_allow_html=True)
+            
+            # Data format og standarder
+            st.markdown('<div class="info-block technical-block">', unsafe_allow_html=True)
+            st.markdown("## 🔧 Data Format og Standarder")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### SEED Format
+                **Standard for Exchange of Earthquake Data**
+                - Global standard for seismiske data
+                - Inkluderer både data og metadata
+                - Station koordinater, instrument respons
+                - Timing information med μs præcision
+                
+                ### FDSN Web Services
+                **Federation of Digital Seismograph Networks**
+                - Standardiseret API til data adgang
+                - Dataselect, Station, Event services
+                - RESTful interface - nem integration
+                - Brugt af GEOseis til IRIS adgang
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### Instrument Response
+                **Poles and Zeros representation:**
+                - Beskriver instrument karakteristik
+                - Frekvens-afhængig forstærkning og fase
+                - Nødvendig for kalibrering til fysiske enheder
+                - Automatisk håndteret af ObsPy
+                
+                ### Timing Præcision
+                **GPS baseret timing:**
+                - μs præcision i moderne stationer
+                - Kritisk for præcise ankomsttider
+                - Automatisk korrektion for klok drift
+                - GEOseis validerer timing konsistens
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Netværk og station koder
+            st.markdown('<div class="info-block technical-block">', unsafe_allow_html=True)
+            st.markdown("## 🌐 Netværk og Station Koder")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### Højkvalitets Netværk
+                **IU - Global Seismographic Network (GSN):**
+                - Højeste kvalitets globale stationer
+                - Bredband, høj dynamisk range
+                - Real-time data transmission
+                - Eksempler: ANMO, COLA, GRFO
+                
+                **II - Global Seismographic Network:**
+                - Supplerende GSN stationer
+                - Samme høje standarder
+                - Eksempler: BFO, PFO, KRIS
+                
+                **G - GEOSCOPE (Frankrig):**
+                - Fransk globalt bredband netværk
+                - Høj kvalitet, pålidelig drift
+                - Eksempler: SSB, ECH, UNM
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### Regionale Netværk
+                **GE - GEOFON (Tyskland):**
+                - Tysk globalt netværk
+                - Fokus på tektonisk aktive områder
+                - Eksempler: WLF, STU, IBBN
+                
+                **CN - Canadian National Network:**
+                - Dækker Canada og arktis
+                - Vigtig for nordlig hemisphære dækning
+                - Eksempler: YKA, SCHQ
+                
+                **US - United States Network:**
+                - Omfattende dækning af USA
+                - Komplementerer GSN stationer
+                - Eksempler: LRAL, mange andre
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # GEOseis implementation
+            st.markdown('<div class="info-block technical-block">', unsafe_allow_html=True)
+            st.markdown("## ⚙️ GEOseis Implementation Detaljer")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                ### ObsPy Integration
+                **Python bibliotek til seismologi:**
+                - Standard i det seismologiske community
+                - Håndterer SEED data automatisk
+                - Instrument response removal
+                - TauP rejsetids beregninger
+                
+                ### Streamlit Framework
+                **Moderne web app framework:**
+                - Reaktiv bruger interface
+                - Interaktive plots med Plotly
+                - Session state management
+                - Easy deployment
+                """)
+                
+            with col2:
+                st.markdown("""
+                ### Data Processing Pipeline
+                **1. Data Hentning:**
+                - IRIS FDSN client
+                - Automatisk station søgning
+                - Timing validering
+                
+                **2. Signal Processing:**
+                - Butterworth filtrering
+                - Spike detection/removal
+                - SNR beregning
+                
+                **3. Analysis:**
+                - Ms magnitude beregning
+                - FFT spektral analyse
+                - P-wave detection
+                
+                **4. Export:**
+                - Excel format med metadata
+                - Downsampling til effektivitet
+                - Komplet analyse dokumentation
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    def update_navigation_panel_with_info(self):
+        """Navigation panel med KORREKT fixed position - over filtermenuen."""
+        
+        # Check om vi skal vise navigation panel
+        if not (st.session_state.get('show_analysis') and st.session_state.get('waveform_data')):
+            return
+        
+        # NAVIGATION PANEL HTML - FIXED POSITION som ønsket
+        nav_html = """
+        <style>
+        .navigation-panel {
+            /* FIXED POSITION - over filtermenuen */
+            position: fixed;
+            top: 80px;           /* 180px fra toppen som ønsket */
+            right: 100px;          /* 20px fra højre side */
+            z-index: 1000;
+            
+            /* Bredde matcher filtermenuen */
+            width: 350px;         /* Samme bredde som filtermenu */
+            max-width: 90vw;      /* Responsive på små skærme */
+            
+            /* Styling */
+            background: rgba(248, 249, 250, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(200, 200, 200, 0.3);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            
+            /* Layout */
+            display: flex;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .nav-button {
+            padding: 12px 16px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            background: transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border-right: 1px solid rgba(200, 200, 200, 0.3);
+            
+            /* Lige fordeling af plads */
+            flex: 1;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .nav-button:last-child {
+            border-right: none;
+        }
+
+        /* HJEM knap */
+        .nav-button.home {
+            color: #6c757d;
+        }
+        .nav-button.home:hover {
+            background: rgba(108, 117, 125, 0.1);
+            color: #495057;
+            text-decoration: none;
+        }
+
+        /* ANALYSE knap */
+        .nav-button.analysis {
+            color: #28a745;
+        }
+        .nav-button.analysis:hover {
+            background: rgba(40, 167, 69, 0.1);
+            color: #218838;
+            text-decoration: none;
+        }
+
+        /* NYTTIG INFO knap */
+        .nav-button.info {
+            color: #fd7e14;
+        }
+        .nav-button.info:hover {
+            background: rgba(253, 126, 20, 0.1);
+            color: #e8590c;
+            text-decoration: none;
+        }
+
+        /* GRØN FIRKANT MED LYN IKON */
+        .analysis-icon-square {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            background: #c9e0c1;
+            color: white;
+            font-size: 12px;
+            font-weight: normal;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Hover effekt for grøn firkant */
+        .nav-button.analysis:hover .analysis-icon-square {
+            background: #218838;
+            transform: scale(1.1);
+            transition: all 0.2s ease;
+        }
+
+        /* ORANGE CIRKEL MED "i" IKON */
+        .info-icon-circle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fd7e14;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            font-style: italic;
+        }
+
+        /* Hover effekt for orange cirkel */
+        .nav-button.info:hover .info-icon-circle {
+            background: #e8590c;
+            transform: scale(1.1);
+            transition: all 0.2s ease;
+        }
+
+        .nav-button:visited {
+            text-decoration: none;
+        }
+
+        /* Responsive tilpasning */
+        @media (max-width: 768px) {
+            .navigation-panel {
+                position: relative;    /* Skift til relative på små skærme */
+                top: auto;
+                right: auto;
+                margin: 10px auto;
+                width: 100%;
+                max-width: 400px;
+            }
+            
+            .nav-button {
+                font-size: 13px;
+                padding: 10px 12px;
+                gap: 4px;
+            }
+            
+            .analysis-icon-square,
+            .info-icon-circle {
+                width: 16px;
+                height: 16px;
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .nav-button span:last-child {
+                display: none;  /* Skjul tekst på meget små skærme */
+            }
+            .nav-button {
+                padding: 8px 10px;
+            }
+        }
+        </style>
+
+        <div class="navigation-panel">
+            <a href="#map-section" class="nav-button home">
+                <span>⌂</span>
+                <span>HJEM</span>
+            </a>
+            <a href="#analysis-section" class="nav-button analysis">
+                <span class="analysis-icon-square">⚡</span>
+                <span>ANALYSE</span>
+            </a>
+            <a href="#info-section" class="nav-button info">
+                <span class="info-icon-circle">i</span>
+                <span>INFO</span>
+            </a>
+        </div>
+        """
+        
+        # Render navigation panel
+        st.markdown(nav_html, unsafe_allow_html=True)
+
+    # HVIS BREDDEN IKKE MATCHER PRÆCIST, kan du justere disse værdier:
+    # 
+    # top: 180px        <- Juster denne for vertikal position
+    # right: 100px       <- Juster denne for horisontal position  
+    # width: 350px      <- Juster denne for at matche filtermenuen's bredde
+    #
+    # For at finde den eksakte bredde af filtermenuen, kan du:
+    # 1. Højreklik på filtermenuen i browseren
+    # 2. Vælg "Inspect Element" 
+    # 3. Se bredden i CSS panelet
+    # 4. Opdater width: værdi tilsvarende
+
+
+#=======================       
+#  Analysedel start      
+#========================    
+    def create_enhanced_analysis_window_updated(self):
+        """
+        Opdateret version af analyse vindue der:
+        1. FJERNER den gamle brugerguide (tab 4)
+        2. Opdaterer navigation til at inkludere "Nyttig Info"
+        3. Kalder den nye useful info når relevant
+        
+        Skal erstatte den nuværende create_enhanced_analysis_window metode.
         """
         selected_eq = st.session_state.get('selected_earthquake')
         selected_station = st.session_state.get('selected_station')
@@ -2968,8 +3818,133 @@ class StreamlinedSeismicApp:
         if not all([selected_eq, selected_station, waveform_data]):
             return
         
-        #st.markdown("---")
-        st.markdown(f"**📈 Analyse: {selected_station['network']}.{selected_station['station']}**")
+        # ANCHOR TIL ANALYSE SEKTION
+        st.markdown('<div id="analysis-section" style="scroll-margin-top: 20px;"></div>', unsafe_allow_html=True)
+
+        # AUTO-SCROLL HANDLING - samme som før
+        if st.session_state.get('auto_scroll_to_analysis', False):
+            st.session_state.auto_scroll_to_analysis = False
+            st.markdown("""
+            <script>
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            function scrollToAnalysis() {
+                const element = document.getElementById('analysis-section');
+                if (element && attempts < maxAttempts) {
+                    element.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start',
+                        inline: 'nearest'
+                    });
+                } else if (attempts < maxAttempts) {
+                    attempts++;
+                    setTimeout(scrollToAnalysis, 200);
+                }
+            }
+            
+            setTimeout(scrollToAnalysis, 1000);
+            </script>
+            """, unsafe_allow_html=True)
+
+        # Header sektion
+        st.subheader(f"**📈 Analyse: {selected_station['network']}.{selected_station['station']}**")
+        
+        # Timing validation samme som før
+        if 'timing_validation' in waveform_data:
+            validation = waveform_data['timing_validation']
+            if not validation['is_valid']:
+                st.warning(f"⚠️ {validation['message']}")
+                if validation['info']:
+                    info = validation['info']
+                    expected_range = info['realistic_p_range']
+                    st.info(f"💡 Forventet: {expected_range[0]:.1f}-{expected_range[1]:.1f}s (observeret: {info['p_arrival_time']:.1f}s)")
+        
+        # CSS for styling - samme som før men tilføjet info knap styling
+        st.markdown("""
+        <style>
+        /* Eksisterende tab styling... */
+        .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+            font-size: 16px !important;
+            padding: 8px 16px !important;
+        }
+        
+        /* Navigation panel opdatering */
+        .nav-button.info {
+            color: #6f42c1;
+            min-width: 85px;
+        }
+        .nav-button.info:hover {
+            background: rgba(111, 66, 193, 0.1);
+            color: #5a2d91;
+            text-decoration: none;
+        }
+        
+        /* Alle andre eksisterende styles... */
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # OPDATERET NAVIGATION PANEL - nu med Nyttig Info
+        self.update_navigation_panel_with_info()
+        
+        # OPDATEREDE TABS - KUN 3 tabs nu, brugerguide er fjernet
+        tab1, tab2, tab3 = st.tabs(["📊 Basis Analyse", "🔬 Avanceret", "📤 Export & Info"])
+        
+        # TAB 1 og TAB 2 samme som før...
+        # [Hele tab1 og tab2 indhold kopieres fra original - for korthed udeladt her]
+        
+        # TAB 3: Export & Info (samme som før)
+        with tab3:
+            # [Eksisterende tab3 indhold kopieres fra original]
+            pass
+
+# Tilføj denne metode til run() metoden for at håndtere info vindue
+
+    def create_enhanced_analysis_window(self):
+        """
+        Opretter avanceret analyse vindue med tab-baseret interface for bedre overskuelighed.
+        VERSION: 2.4 - Forbedret navigation panel og auto-scroll
+        """
+        selected_eq = st.session_state.get('selected_earthquake')
+        selected_station = st.session_state.get('selected_station')
+        waveform_data = st.session_state.get('waveform_data')
+        
+        # Kræv alle kritiske komponenter før visning
+        if not all([selected_eq, selected_station, waveform_data]):
+            return
+        
+        # TILFØJ ANCHOR TIL ANALYSE SEKTION
+        st.markdown('<div id="analysis-section" style="scroll-margin-top: 20px;"></div>', unsafe_allow_html=True)
+
+        # AUTO-SCROLL HANDLING - Forbedret version
+        if st.session_state.get('auto_scroll_to_analysis', False):
+            st.session_state.auto_scroll_to_analysis = False  # Reset flag
+            st.markdown("""
+            <script>
+            // Forsøg flere gange hvis element ikke er klar
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            function scrollToAnalysis() {
+                const element = document.getElementById('analysis-section');
+                if (element && attempts < maxAttempts) {
+                    element.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start',
+                        inline: 'nearest'
+                    });
+                } else if (attempts < maxAttempts) {
+                    attempts++;
+                    setTimeout(scrollToAnalysis, 200);
+                }
+            }
+            
+            setTimeout(scrollToAnalysis, 1000);
+            </script>
+            """, unsafe_allow_html=True)
+
+        # Header sektion
+        st.subheader(f"**📈 Analyse: {selected_station['network']}.{selected_station['station']}**")
         
         # Vis kun timing problemer hvis de eksisterer
         if 'timing_validation' in waveform_data:
@@ -2981,588 +3956,643 @@ class StreamlinedSeismicApp:
                     expected_range = info['realistic_p_range']
                     st.info(f"💡 Forventet: {expected_range[0]:.1f}-{expected_range[1]:.1f}s (observeret: {info['p_arrival_time']:.1f}s)")
         
-        # Bruger guide toggle
-        col_info, col_space = st.columns([1, 4])
-        with col_info:
-            if st.button("ℹ️ Bruger Guide", key="info_button"):
-                st.session_state['show_user_guide'] = not st.session_state.get('show_user_guide', False)
+       # CSS for styling af tab indhold - KUN basis styling
+        st.markdown('''
+        <style>
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+            font-size: 16px !important;
+            padding: 8px 16px !important;
+        }
         
-        # Expandable user guide med technical details
-        if st.session_state.get('show_user_guide', False):
-            with st.expander("📚 GEOseis Analyse Guide", expanded=True):
-                # Show current data specifications
-                sampling_rate = waveform_data.get('sampling_rate', 'Ukendt')
-                nyquist_freq = sampling_rate / 2.0 if isinstance(sampling_rate, (int, float)) else 'Ukendt'
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 20px !important;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] button {
+            height: auto !important;
+            padding: 12px 20px !important;
+            border-radius: 12px !important;
+        }
+        
+        .tab-content {
+            padding: 10px 0;
+        }
+        .metric-container {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        .analysis-section {
+            margin: 20px 0;
+        }
+        
+        /* Info window styling */
+        .guide-understand {
+            background: linear-gradient(135deg, #e8f4fd, #f0f8ff) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .guide-filters {
+            background: linear-gradient(135deg, #f0fff0, #f5fffa) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .guide-magnitude {
+            background: linear-gradient(135deg, #fff8dc, #fffacd) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .guide-about {
+            background: linear-gradient(135deg, #faf0e6, #fdf5e6) !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .content-block {
+            background: rgba(255, 255, 255, 0.8) !important;
+            padding: 20px !important;
+            border-radius: 10px !important;
+            margin: 15px 5px !important;
+            border-left: 4px solid #007bff !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        }
+        
+        /* Checkbox styling */
+        .stCheckbox {
+            margin-bottom: 2px !important;
+        }
+        
+        .stCheckbox > label {
+            margin-bottom: 0px !important;
+        }
+        </style>
+        ''', unsafe_allow_html=True)
+        
+        # NAVIGATION PANEL - Nu med korrekt placering
+        self.update_navigation_panel_with_info()
+        
+        # HOVEDTABS - Organiseret workflow  
+        tab1, tab2, tab3 = st.tabs(["📊 Basis Analyse", "🔬 Avanceret", "📤 Export & Info"])
+
+        # ==========================================
+        # TAB 1: BASIS ANALYSE - VERSION 2.2 KOMPAKT
+        # ==========================================
+        with tab1:
+            st.markdown('<div class="tab-content">', unsafe_allow_html=True)
+            
+            # ENKELT kombineret kontrolpanel
+            with st.expander("Vælg filter og komponenter", expanded=True):
+                col1, col2, col3, col4, col5,col6  = st.columns([2, 1, 1, 1,1,1])
                 
-                st.info(f"**Aktuel Data:** Sampling rate: {sampling_rate} Hz | Nyquist frekvens: {nyquist_freq} Hz")
-                st.info(f"**⏰ Timing:** Tid 0s = Jordskælv tidspunkt | Data længde: 30 minutter")
-                
-                # Comprehensive filter guide
-                st.markdown("""
-                **🎛️ Filter Typer:**
-                - **🔹 Ingen filtrering**: Originale data som hentet fra IRIS (kun response fjernelse)
-                - **🔹 Bredband**: Standard filter, fjerner mest støj (0.01-25 Hz)
-                - **🔹 P-bølger**: Isolerer primære kompressionsbølger (1.0-10 Hz)
-                - **🔹 S-bølger**: Isolerer sekundære forskydningsbølger (0.5-5.0 Hz)  
-                - **🔹 Overfladebølger**: ✅ **Bedst til Ms magnitude beregning** (0.02-0.5 Hz)
-                - **🔹 Lang-periode**: Meget lave frekvenser (0.005-0.1 Hz)
-                - **🔹 Teleseismisk**: Optimeret til fjerne jordskælv (0.02-2.0 Hz)
-                
-                ⚠️ **Vigtigt**: Filtre justeres automatisk til din data's sampling rate!
-                
-                **📊 Data Typer:**
-                - **Rådata (Counts)**: Direkte fra instrument, viser elektroniske enheder
-                - **Forskydning (mm)**: Kalibreret til fysiske enheder efter response fjernelse
-                - **Processeret (mm)**: Forskydning med eventuelt filter og spike fjernelse
-                
-                **🔬 Analysemuligheder:**
-                - **Ms Magnitude**: Beregnes automatisk fra processeret data
-                - **FFT Analyse**: Frekvensindhold af overfladebølger  
-                - **Før/efter sammenligning**: Se effekt af processering
-                - **Ankomsttider**: P, S og overfladebølger markeret på grafer
-                
-                **💡 Tips:**
-                - Start med **🔹 Ingen filtrering** for at se original data
-                - Brug **🔹 Bredband** for generel analyse
-                - Brug **🔹 Overfladebølger** for præcis Ms beregning
-                - Aktivér **sammenligning** for at se processing effekt
-                """)
-        
-        # FORBEDRET filter control panel med klarere labels
-        with st.expander("🎛️ Signal Processing Kontrolpanel", expanded=True):
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-            
-            with col1:
-                # FORBEDRET filter options med klarere beskrivelser og ikoner
-                filter_options = {
-                    'raw': '🔹 Ingen filtrering (Original data)',
-                    'broadband': '🔹 Bredband filter (0.01-25 Hz)',
-                    'p_waves': '🔹 P-bølger (1.0-10 Hz)',
-                    's_waves': '🔹 S-bølger (0.5-5.0 Hz)', 
-                    'surface': '🔹 Overfladebølger (0.02-0.5 Hz) ⭐',
-                    'long_period': '🔹 Lang-periode (0.005-0.1 Hz)',
-                    'teleseismic': '🔹 Teleseismisk (0.02-2.0 Hz)'
-                }
-                
-                selected_filter = st.selectbox(
-                    "🎛️ Vælg Signal Processing",
-                    options=list(filter_options.keys()),
-                    format_func=lambda x: filter_options[x],
-                    index=0,  # Default til ingen filtrering for transparency
-                    key="filter_selection",
-                    help="⭐ = Anbefalet til Ms magnitude beregning"
-                )
-            
-            with col2:
-                remove_spikes = st.checkbox("🔧 Fjern spikes", value=True, key="remove_spikes",
-                                        help="Automatisk detektion og fjernelse af instrument spikes")
-            
-            with col3:
-                show_noise_stats = st.checkbox("📊 Støj analyse", value=True, key="show_noise",
-                                            help="Beregn SNR og støj statistikker")
-            
-            with col4:
-                # FORBEDRET comparison med automatisk aktivering
-                auto_comparison = selected_filter != 'raw'
-                show_comparison = st.checkbox("🔄 Før/efter sammenligning", 
-                                            value=auto_comparison, key="show_comparison",
-                                            help="Sammenlign original data med processeret data")
-        
-        # FORBEDRET visualization controls med klarere grupering
-        with st.expander("📈 Avancerede Visualiseringer", expanded=False):
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                show_snr_plot = st.checkbox("📊 SNR graf", value=False, key="show_snr",
-                                        help="Signal-to-Noise Ratio over tid")
-            
-            with col2:
-                show_fft_plot = st.checkbox("🌊 FFT spektrum", value=False, key="show_fft",
-                                        help="Frekvens analyse af overfladebølger")
-            
-            with col3:
-                show_p_analysis = st.checkbox("⚡ P-bølge zoom", value=False, key="show_p_analysis",
-                                            help="Detaljeret P-ankomst analyse med STA/LTA")
-            
-            with col4:
-                show_raw_data = st.checkbox("📡 Rådata graf", value=False, key="show_raw_data",
-                                        help="Vis original instrument counts")
-        
-        # Component visibility controls med forbedret layout
-        st.markdown("**🧭 Komponent Synlighed:**")
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-        
-        with col1:
-            show_north = st.checkbox("📍 North (N)", value=st.session_state.component_visibility['north'], 
-                                key="show_north", help="Nord-syd komponent")
-            st.session_state.component_visibility['north'] = show_north
-        
-        with col2:
-            show_east = st.checkbox("📍 East (E)", value=st.session_state.component_visibility['east'], 
-                                key="show_east", help="Øst-vest komponent")
-            st.session_state.component_visibility['east'] = show_east
-        
-        with col3:
-            show_vertical = st.checkbox("📍 Vertical (Z)", value=st.session_state.component_visibility['vertical'], 
-                                    key="show_vertical", help="Op-ned komponent")
-            st.session_state.component_visibility['vertical'] = show_vertical
-        
-        # FORBEDRET Excel export med klarere information
-        with col4:
-            # Information om hvad der eksporteres
-            if selected_filter == 'raw':
-                export_info = "📊 Export (Original data)"
-                export_help = "Eksporterer originale displacement data uden filtrering"
-            else:
-                export_info = f"📊 Export ({filter_options[selected_filter].split('(')[0].strip()})"
-                export_help = f"Eksporterer data processeret med: {filter_options[selected_filter]}"
-            
-            if st.button(export_info, use_container_width=True, key="export_excel_btn", help=export_help):
-                try:
-                    # Brug enhanced processor til export
-                    enhanced_processor = self.data_manager.processor
-                    
-                    # Tilføj arrival times til waveform data
-                    waveform_data_with_arrivals = waveform_data.copy()
-                    waveform_data_with_arrivals['arrival_times'] = {
-                        'P': selected_station.get('p_arrival'),
-                        'S': selected_station.get('s_arrival'),
-                        'Surface': selected_station.get('surface_arrival')
+                with col1:
+                    filter_options = {
+                        'raw': 'Original data (ingen filtrering)',
+                        'broadband': 'Bredband filter (standard)',
+                        'surface': 'Overfladebølger (til Ms magnitude) ⭐',
+                        'p_waves': 'P-bølger',
+                        's_waves': 'S-bølger'
                     }
                     
-                    # Processer med valgte filter indstillinger
-                    processed_data = enhanced_processor.process_waveform_with_filtering(
-                        waveform_data_with_arrivals, 
-                        filter_type=selected_filter,
-                        remove_spikes=remove_spikes
+                    selected_filter = st.selectbox(
+                        "Filtertype:",
+                        options=list(filter_options.keys()),
+                        format_func=lambda x: filter_options[x],
+                        index=1,
+                        key="filter_selection_tab1"
                     )
                     
-                    if processed_data:
-                        # Brug processeret data til Ms beregning
-                        filtered_displacement = processed_data['filtered_data']
+                with col2:
+                    remove_spikes = st.checkbox("Fjern spikes", value=True, key="remove_spikes_tab1")
+                    
+                with col3:
+                    show_noise_stats = st.checkbox("Støj-analyse", value=True, key="show_noise_tab1")
+                with col4:
+                    
+                    show_north = st.checkbox("Vis Nord (N)", value=True, key="show_north_tab1")
+                    
+                with col5:
+                    show_east = st.checkbox("Vis Øst (E)", value=True, key="show_east_tab1")
+                    
+                with col6:
+                    show_vertical = st.checkbox("Vis Vertikal (Z)", value=True, key="show_vertical_tab1")    
+            
+            # Processer data
+            try:
+                enhanced_processor = self.data_manager.processor
+                
+                # Forbered data med arrival times
+                waveform_data_with_arrivals = waveform_data.copy()
+                waveform_data_with_arrivals['arrival_times'] = {
+                    'P': selected_station.get('p_arrival'),
+                    'S': selected_station.get('s_arrival'), 
+                    'Surface': selected_station.get('surface_arrival')
+                }
+                
+                # Processer data
+                processed_data = enhanced_processor.process_waveform_with_filtering(
+                    waveform_data_with_arrivals,
+                    filter_type=selected_filter,
+                    remove_spikes=remove_spikes,
+                    calculate_noise=show_noise_stats
+                )
+                
+                if processed_data:
+                    times = waveform_data['time']
+                    sampling_rate = waveform_data['sampling_rate']
+                    filtered_data = processed_data['filtered_data']
+                    
+                    # Beregn Ms magnitude
+                    ms_magnitude, ms_explanation = enhanced_processor.calculate_ms_magnitude(
+                        filtered_data['north'], filtered_data['east'], filtered_data['vertical'],
+                        selected_station['distance_km'], sampling_rate
+                    )
+                    
+                    # Brugervejledning OVER grafen - foldet ind som standard
+                    with st.expander("💡 Sådan læser du grafen", expanded=False):
+                        st.info("""
+                        - **Lodrette linjer** viser teoretiske ankomsttider for P-, S- og overfladebølger
+                        - **Amplitude** (y-akse) er jordens bevægelse i millimeter
+                        - **Tid** (x-akse) er sekunder efter jordskælvet
+                        - **Klik på legend** for at skjule/vise komponenter
+                        """)
+                    
+                    # HOVEDGRAF - Forenklet seismogram
+                    fig = go.Figure()
+                    
+                    # Tilføj komponenter baseret på brugervalg
+                    if show_north:
+                        fig.add_trace(go.Scatter(x=times, y=filtered_data['north'], 
+                                            mode='lines', name='North', 
+                                            line=dict(color='red', width=1)))
+                    if show_east:
+                        fig.add_trace(go.Scatter(x=times, y=filtered_data['east'], 
+                                            mode='lines', name='East', 
+                                            line=dict(color='green', width=1)))
+                    if show_vertical:
+                        fig.add_trace(go.Scatter(x=times, y=filtered_data['vertical'], 
+                                            mode='lines', name='Vertical', 
+                                            line=dict(color='blue', width=1)))
+                    
+                    # Tilføj arrival times
+                    arrivals = [
+                        (selected_station.get('p_arrival'), 'P-bølge', 'red'),
+                        (selected_station.get('s_arrival'), 'S-bølge', 'blue'),
+                        (selected_station.get('surface_arrival'), 'Overfladebølge', 'green')
+                    ]
+                    
+                    for arrival_time, phase, color in arrivals:
+                        if arrival_time is not None:
+                            fig.add_vline(x=arrival_time, line=dict(color=color, width=2, dash='dash'),
+                                        annotation_text=phase)
+                    
+                    # Graf styling
+                    filter_name = filter_options[selected_filter].replace('🔹 ', '').split(' (')[0]
+                    fig.update_layout(
+                        title=f"Seismogram: {selected_station['network']}.{selected_station['station']} - {filter_name}",
+                        xaxis_title="Tid efter jordskælv (sekunder)",
+                        yaxis_title="Forskydning (mm)",
+                        height=500,
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # VIGTIGE RESULTATER - Metrics display
+                    st.markdown("### Resultater af analyse")
+                    
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    
+                    with col1:
+                        st.metric("Afstand", f"{selected_station['distance_km']:.0f} km")
                         
-                        # Beregn Ms magnitude med processeret data
-                        ms_magnitude, ms_explanation = enhanced_processor.calculate_ms_magnitude(
-                            filtered_displacement['north'], filtered_displacement['east'], 
-                            filtered_displacement['vertical'], selected_station['distance_km'], 
-                            waveform_data['sampling_rate']
-                        )
+                    with col2:
+                        p_arrival = selected_station.get('p_arrival')
+                        st.metric("P-ankomst", f"{p_arrival:.1f} s" if p_arrival else "N/A")
                         
-                        # Opdater waveform_data med processeret data til export
-                        export_waveform_data = waveform_data.copy()
-                        export_waveform_data['displacement_data'] = filtered_displacement
+                    with col3:
+                        s_arrival = selected_station.get('s_arrival')
+                        st.metric("S-ankomst", f"{s_arrival:.1f} s" if s_arrival else "N/A")
                         
-                        with st.spinner("📊 Genererer Excel fil..."):
-                            excel_data = self.data_manager.export_to_excel(
-                                selected_eq, selected_station, export_waveform_data, 
-                                ms_magnitude, ms_explanation
-                            )
+                    with col4:
+                        if ms_magnitude:
+                            st.metric("Ms Magnitude", f"{ms_magnitude}")
+                        else:
+                            st.metric("Ms Magnitude", "N/A")
                             
-                            if excel_data:
-                                # FORBEDRET filename med processing information
-                                processing_suffix = "" if selected_filter == 'raw' else f"_{selected_filter}"
-                                filename = f"seismic_data_{selected_station['network']}_{selected_station['station']}_{selected_eq['time'].strftime('%Y%m%d')}{processing_suffix}.xlsx"
-                                
-                                st.download_button(
-                                    label="⬇️ Download Excel File",
-                                    data=excel_data,
-                                    file_name=filename,
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    key="download_excel_file"
-                                )
-                                
-                                # FORBEDRET success message med processing info
-                                if selected_filter == 'raw':
-                                    st.success("✅ Excel fil med original data klar til download!")
-                                else:
-                                    st.success(f"✅ Excel fil med {filter_options[selected_filter].lower()} processeret data klar!")
-                            else:
-                                st.error("❌ Kunne ikke generere Excel fil")
-                    else:
-                        st.error("❌ Fejl ved dataprocessering")
-                        
-                except Exception as e:
-                    st.error(f"❌ Fejl: {str(e)}")
+                    with col5:
+                        # Beregn maksimum amplitude
+                        max_amp = max(
+                            np.max(np.abs(filtered_data['north'])) if show_north else 0,
+                            np.max(np.abs(filtered_data['east'])) if show_east else 0,
+                            np.max(np.abs(filtered_data['vertical'])) if show_vertical else 0
+                        )
+                        st.metric("Max amplitude", f"{max_amp:.2f} mm")
+                    
+                    # Ms magnitude forklaring
+                    if ms_magnitude and ms_explanation:
+                        with st.expander("Ms Magnitude Detaljer"):
+                            st.markdown(ms_explanation)
+                            
+            except Exception as e:
+                st.error(f"❌ Analyse fejl: {str(e)}")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
         
-        # FORBEDRET main analysis med dynamiske plot navne
-        try:
-            # Initialisér enhanced processor
-            enhanced_processor = self.data_manager.processor
+        # ==========================================
+        # TAB 2: AVANCERET ANALYSE
+        # ==========================================
+        with tab2:
+            st.markdown('<div class="tab-content">', unsafe_allow_html=True)
             
-            # Forbered data med arrival times til advanced analysis
-            waveform_data_with_arrivals = waveform_data.copy()
-            waveform_data_with_arrivals['arrival_times'] = {
-                'P': selected_station.get('p_arrival'),
-                'S': selected_station.get('s_arrival'), 
-                'Surface': selected_station.get('surface_arrival')
-            }
+            # Avancerede visualiseringer
+            st.markdown("### Avancerede Analyser")
             
-            # Processer data med valgte indstillinger
-            processed_data = enhanced_processor.process_waveform_with_filtering(
-                waveform_data_with_arrivals,
-                filter_type=selected_filter,
-                remove_spikes=remove_spikes,
-                calculate_noise=show_noise_stats
-            )
-            
-            if not processed_data:
-                st.error("❌ Kunne ikke processere data")
-                return
-            
-            # Ekstrahér processerede data komponenter
-            times = waveform_data['time']
-            sampling_rate = waveform_data['sampling_rate']
-            original_data = processed_data['original_data']
-            filtered_data = processed_data['filtered_data']
-            raw_data = waveform_data['raw_data']
-            
-            # Beregn Ms magnitude fra processeret data
-            ms_magnitude, ms_explanation = enhanced_processor.calculate_ms_magnitude(
-                filtered_data['north'], filtered_data['east'], filtered_data['vertical'],
-                selected_station['distance_km'], sampling_rate
-            )
-            
-            # FFT analyse på processeret overfladebølger
-            surface_arrival = selected_station.get('surface_arrival')
-            periods, fft_amplitudes, peak_period, peak_amplitude = None, None, None, None
-            
-            if surface_arrival:
-                # Brug dominerende horizontale komponent til FFT
-                max_north = np.max(np.abs(filtered_data['north']))
-                max_east = np.max(np.abs(filtered_data['east']))
-                dominant_horizontal = filtered_data['north'] if max_north > max_east else filtered_data['east']
-                
-                periods, fft_amplitudes, peak_period, peak_amplitude = enhanced_processor.calculate_surface_wave_fft(
-                    dominant_horizontal, sampling_rate, surface_arrival
-                )
-            
-            # FORBEDRET multi-panel visualization med dynamiske navne
-            from plotly.subplots import make_subplots
-            
-            # Dynamisk bestemmelse af nødvendige plots
-            plots_needed = []
-            
-            if show_raw_data:
-                plots_needed.append('raw_signal')
-            
-            # Altid vis hovedsignal
-            plots_needed.append('main_signal')
-            
-            # Vis Ms beregning hvis relevant
-            if ms_magnitude:
-                plots_needed.append('ms_calculation')
-            
-            if show_comparison and selected_filter != 'raw':
-                plots_needed.append('comparison')
-            if show_snr_plot and 'snr_data' in processed_data and processed_data['snr_data']:
-                plots_needed.append('snr')
-            if show_fft_plot and periods is not None:
-                plots_needed.append('fft')
-            
-            # Intelligent subplot layout beregning
-            num_plots = len(plots_needed)
-            if num_plots <= 2:
-                rows, cols = 1, 2
-            elif num_plots <= 4:
-                rows, cols = 2, 2
-            elif num_plots <= 6:
-                rows, cols = 2, 3
-            else:
-                rows, cols = 3, 3
-            
-            # FORBEDRET subplot titles med dynamiske navne
-            def get_dynamic_title(plot_type):
-                if plot_type == 'raw_signal':
-                    return 'Rådata (Counts)'
-                elif plot_type == 'main_signal':
-                    if selected_filter == 'raw':
-                        return 'Signal (mm) - Original displacement'
-                    else:
-                        filter_name = filter_options[selected_filter].split('(')[0].strip().replace('🔹 ', '')
-                        return f'Processeret Signal (mm) - {filter_name}'
-                elif plot_type == 'ms_calculation':
-                    return 'Ms Magnitude Beregning'
-                elif plot_type == 'comparison':
-                    return 'Før/Efter Sammenligning'
-                elif plot_type == 'snr':
-                    return 'Signal-to-Noise Ratio'
-                elif plot_type == 'fft':
-                    return 'FFT Spektrum - Overfladebølger'
-                else:
-                    return plot_type
-            
-            subplot_titles = []
-            for plot in plots_needed:
-                subplot_titles.append(get_dynamic_title(plot))
-            
-            # Pad med tomme titler hvis nødvendigt
-            while len(subplot_titles) < rows * cols:
-                subplot_titles.append('')
-            
-            # Opret master subplot figure
-            fig = make_subplots(
-                rows=rows, cols=cols,
-                subplot_titles=subplot_titles,
-                vertical_spacing=0.08,
-                horizontal_spacing=0.10
-            )
-            
-            # Beregn plot positioner
-            plot_positions = {}
-            for i, plot in enumerate(plots_needed):
-                row = (i // cols) + 1
-                col = (i % cols) + 1
-                plot_positions[plot] = (row, col)
-            
-            # Forbered arrival times til plotting
-            arrivals = [
-                (selected_station.get('p_arrival'), 'P', 'red'),
-                (selected_station.get('s_arrival'), 'S', 'blue'),
-                (selected_station.get('surface_arrival'), 'Surface', 'green')
-            ]
-            
-            # Plot 1: Raw data (hvis valgt)
-            if 'raw_signal' in plot_positions:
-                row, col = plot_positions['raw_signal']
-                if st.session_state.component_visibility['north']:
-                    fig.add_trace(go.Scatter(x=times, y=raw_data['north'], mode='lines', 
-                                        name='North (raw)', line=dict(color='red', width=1)), row=row, col=col)
-                if st.session_state.component_visibility['east']:
-                    fig.add_trace(go.Scatter(x=times, y=raw_data['east'], mode='lines', 
-                                        name='East (raw)', line=dict(color='green', width=1)), row=row, col=col)
-                if st.session_state.component_visibility['vertical']:
-                    fig.add_trace(go.Scatter(x=times, y=raw_data['vertical'], mode='lines', 
-                                        name='Vertical (raw)', line=dict(color='blue', width=1)), row=row, col=col)
-                
-                # Tilføj arrival lines til rådata
-                for arrival_time, phase, color in arrivals:
-                    if arrival_time is not None:
-                        fig.add_vline(x=arrival_time, line=dict(color=color, width=2, dash='dash'),
-                                    annotation_text=f"{phase}", row=row, col=col)
-            
-            # Plot 2: FORBEDRET hovedsignal (dynamisk navngivning)
-            if 'main_signal' in plot_positions:
-                row, col = plot_positions['main_signal']
-                
-                # Brug korrekte trace navne baseret på processing
-                if selected_filter == 'raw':
-                    trace_suffix = '(original)'
-                else:
-                    trace_suffix = '(processeret)'
-                
-                if st.session_state.component_visibility['north']:
-                    fig.add_trace(go.Scatter(x=times, y=filtered_data['north'], mode='lines', 
-                                        name=f'North {trace_suffix}', line=dict(color='red', width=1), showlegend=False), row=row, col=col)
-                if st.session_state.component_visibility['east']:
-                    fig.add_trace(go.Scatter(x=times, y=filtered_data['east'], mode='lines', 
-                                        name=f'East {trace_suffix}', line=dict(color='green', width=1), showlegend=False), row=row, col=col)
-                if st.session_state.component_visibility['vertical']:
-                    fig.add_trace(go.Scatter(x=times, y=filtered_data['vertical'], mode='lines', 
-                                        name=f'Vertical {trace_suffix}', line=dict(color='blue', width=1), showlegend=False), row=row, col=col)
-                
-                # Tilføj arrival lines
-                for arrival_time, phase, color in arrivals:
-                    if arrival_time is not None:
-                        fig.add_vline(x=arrival_time, line=dict(color=color, width=2, dash='dash'),
-                                    annotation_text=f"{phase}", row=row, col=col)
-            
-            # Plot 3: Ms calculation visualization
-            if 'ms_calculation' in plot_positions:
-                row, col = plot_positions['ms_calculation']
-                
-                # Bestem og vis dominerende komponent brugt til Ms
-                max_north = np.max(np.abs(filtered_data['north']))
-                max_east = np.max(np.abs(filtered_data['east']))
-                dominant_component = filtered_data['north'] if max_north > max_east else filtered_data['east']
-                dominant_name = "North" if max_north > max_east else "East"
-                
-                fig.add_trace(go.Scatter(x=times, y=dominant_component, mode='lines', 
-                                    name=f'{dominant_name} (dominant)', line=dict(color='orange', width=2), showlegend=False), 
-                            row=row, col=col)
-                
-                # Markér maksimum amplitude punkt på dominerende komponent
-                max_idx = np.argmax(np.abs(dominant_component))
-                max_time = times[max_idx]
-                max_amp = dominant_component[max_idx]
-                
-                fig.add_trace(go.Scatter(x=[max_time], y=[max_amp], mode='markers', 
-                                    marker=dict(color='red', size=12, symbol='star'), 
-                                    name=f'Max', showlegend=False), 
-                            row=row, col=col)
-            
-            # Plot 4: FORBEDRET comparison
-            if 'comparison' in plot_positions:
-                row, col = plot_positions['comparison']
-                component_for_comparison = 'vertical' if st.session_state.component_visibility['vertical'] else 'north'
-                
-                fig.add_trace(go.Scatter(x=times, y=original_data[component_for_comparison], mode='lines', 
-                                    name='Original', line=dict(color='gray', width=1), showlegend=False), row=row, col=col)
-                
-                filter_name = filter_options[selected_filter].split('(')[0].strip().replace('🔹 ', '')
-                fig.add_trace(go.Scatter(x=times, y=filtered_data[component_for_comparison], mode='lines', 
-                                    name=f'Processeret ({filter_name})', line=dict(color='red', width=2), showlegend=False), row=row, col=col)
-            
-            # Plot 5: SNR (hvis valgt)
-            if 'snr' in plot_positions:
-                row, col = plot_positions['snr']
-                for component, snr_info in processed_data['snr_data'].items():
-                    if st.session_state.component_visibility.get(component, False):
-                        fig.add_trace(go.Scatter(
-                            x=snr_info['times'], y=snr_info['snr_db'], mode='lines',
-                            name=f'SNR {component}', line=dict(width=2), showlegend=False
-                        ), row=row, col=col)
-            
-            # Plot 6: FFT (hvis valgt)
-            if 'fft' in plot_positions and periods is not None:
-                row, col = plot_positions['fft']
-                fig.add_trace(go.Scatter(x=periods, y=fft_amplitudes, mode='lines', 
-                                    name='FFT', line=dict(color='purple', width=2), showlegend=False), 
-                            row=row, col=col)
-                
-                if peak_period and peak_amplitude:
-                    fig.add_trace(go.Scatter(x=[peak_period], y=[peak_amplitude], mode='markers', 
-                                        marker=dict(color='red', size=12, symbol='star'), 
-                                        name=f'Peak: {peak_period:.1f}s', showlegend=False), 
-                                row=row, col=col)
-            
-            # FORBEDRET layout med processing information
-            processing_info = "Original Data" if selected_filter == 'raw' else filter_options[selected_filter].replace('🔹 ', '')
-            
-            fig.update_layout(
-                title=f"Analyse: {selected_station['network']}.{selected_station['station']} - {selected_station['distance_km']:.0f} km - M{selected_eq['magnitude']:.1f} ({processing_info})",
-                height=400 + (rows-1) * 300,  # Responsiv højde
-                showlegend=True
-            )
-            
-            # Opdater akse labels baseret på plot type
-            for plot, (row, col) in plot_positions.items():
-                fig.update_xaxes(title_text="Tid (s)", row=row, col=col)
-                
-                if plot == 'raw_signal':
-                    fig.update_yaxes(title_text="Counts", row=row, col=col)
-                elif plot in ['main_signal', 'ms_calculation', 'comparison']:
-                    fig.update_yaxes(title_text="Forskydning (mm)", row=row, col=col)
-                elif plot == 'snr':
-                    fig.update_yaxes(title_text="SNR (dB)", row=row, col=col)
-                elif plot == 'fft':
-                    fig.update_xaxes(title_text="Periode (s)", type="log", row=row, col=col)
-                    fig.update_yaxes(title_text="FFT Amplitude", row=row, col=col)
-            
-            # Render hovedvisualisering
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # P-wave detail analysis (hvis valgt)
-            if show_p_analysis:
-                st.markdown("### ⚡ P-bølge Detaljeret Analyse")
-                
-                p_fig, peak_info = enhanced_processor.create_p_wave_zoom_plot(
-                    waveform_data, selected_station, processed_data
-                )
-                
-                if p_fig and peak_info:
-                    st.plotly_chart(p_fig, use_container_width=True)
-                    
-                    # P-wave detection summary
-                    st.markdown("**P-ankomst Detektion Resultater:**")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    for i, peak in enumerate(peak_info):
-                        with [col1, col2, col3][i]:
-                            st.metric(
-                                f"{peak['component'].capitalize()} Peak",
-                                f"{peak['time']:.1f}s",
-                                delta=f"{peak['delay']:+.1f}s fra teoretisk"
-                            )
-                            st.caption(f"STA/LTA: {peak['sta_lta']:.1f}")
-                    
-                    # Intelligent interpretation
-                    best_detection = max(peak_info, key=lambda x: x['sta_lta'])
-                    
-                    if best_detection['sta_lta'] > 5.0:
-                        st.success(f"✅ Klar P-ankomst detekteret på {best_detection['component']} komponent")
-                    elif best_detection['sta_lta'] > 3.0:
-                        st.warning(f"⚠️ Mulig P-ankomst på {best_detection['component']} komponent")
-                    else:
-                        st.error("❌ Ingen klar P-ankomst detekteret - muligvis for meget støj")
-                        
-                else:
-                    st.warning("⚠️ Kunne ikke generere P-bølge analyse")
-            
-            # FORBEDRET metrics dashboard med processing info
-            col1, col2, col3, col4, col5 = st.columns(5)
+            col1, col2 = st.columns(2)
             
             with col1:
-                st.metric("🎯 Afstand", f"{selected_station['distance_km']:.0f} km")
-            with col2:
-                p_arrival = selected_station.get('p_arrival')
-                st.metric("⚡ P-ankomst", f"{p_arrival:.1f} s" if p_arrival else "N/A")
-            with col3:
-                s_arrival = selected_station.get('s_arrival')
-                st.metric("🌊 S-ankomst", f"{s_arrival:.1f} s" if s_arrival else "N/A")
-            with col4:
-                if ms_magnitude:
-                    st.metric("📊 Ms Magnitude", f"{ms_magnitude}")
-                else:
-                    st.metric("📊 Ms Magnitude", "N/A")
-            with col5:
-                if peak_period:
-                    st.metric("🎵 Peak Periode", f"{peak_period:.1f} s")
-                else:
-                    st.metric("🎵 Peak Periode", "N/A")
-            
-            # Expandable detailed sections
-            if ms_magnitude and ms_explanation:
-                with st.expander("🧮 Ms Magnitude Beregning"):
-                    st.markdown(ms_explanation)
-            
-            if peak_period and peak_amplitude:
-                with st.expander("🌊 Overfladebølge Analyse"):
-                    st.info(f"**Peak periode:** {peak_period:.1f} sekunder (optimal ~20s)")
-                    st.info(f"**Peak amplitude:** {peak_amplitude:.2e} (FFT magnitude)")
-                    
-                    if abs(peak_period - 20.0) < 5.0:
-                        st.success("✅ Peak periode tæt på optimal 20s for Ms beregning")
-                    else:
-                        st.warning("⚠️ Peak periode afviger fra optimal 20s")
-            
-            # FORBEDRET data quality summary med processing info
-            available_components = waveform_data.get('available_components', [])
-            processing_summary = "Original displacement data" if selected_filter == 'raw' else f"Data processeret med {filter_options[selected_filter].lower()}"
-            
-            st.caption(f"✅ IRIS data: {', '.join(available_components)} komponenter fra {selected_station['network']}.{selected_station['station']} - {processing_summary}")
-            
-            # TILFØJET: Processing quality feedback
-            if selected_filter != 'raw' and processed_data.get('spike_info'):
-                spike_summary = []
-                for component, spike_info in processed_data['spike_info'].items():
-                    if spike_info.get('num_spikes', 0) > 0:
-                        spike_summary.append(f"{component}: {spike_info['num_spikes']} spikes fjernet")
+                show_fft_plot = st.checkbox("FFT spektrum analyse", value=True, key="fft_tab2")  # Nu default aktiveret
+                show_snr_plot = st.checkbox("Signal-to-Noise Ratio", value=False, key="snr_tab2")
+                show_raw_data = st.checkbox("Rådata (counts)", value=False, key="raw_tab2")
                 
-                if spike_summary:
-                    st.caption(f"🔧 Signal processing: {', '.join(spike_summary)}")
+            with col2:
+                show_p_analysis = st.checkbox("P-bølge detaljeret zoom", value=False, key="p_analysis_tab2")
+                show_all_filters = st.checkbox("Sammenlign alle filtre", value=False, key="all_filters_tab2")
             
-        except Exception as e:
-            st.error(f"❌ Analyse fejl: {str(e)}")
-            import traceback
-            st.error(traceback.format_exc())
-    
+            # Brug samme processed_data fra Tab 1
+            if 'processed_data' in locals() and processed_data:
+                
+                # Sammenlign alle filtre
+                if show_all_filters:
+                    st.markdown("#### Sammenligning af Alle Filtre")
+                    
+                    # Proces data med forskellige filtre
+                    filter_types = ['raw', 'broadband', 'p_waves', 's_waves', 'surface']
+                    filter_names = {
+                        'raw': 'Original',
+                        'broadband': 'Bredband', 
+                        'p_waves': 'P-bølger',
+                        's_waves': 'S-bølger',
+                        'surface': 'Overfladebølger'
+                    }
+                    
+                    all_filters_fig = go.Figure()
+                    colors = ['gray', 'blue', 'red', 'green', 'orange']
+                    
+                    component = 'vertical'  # Brug vertikal komponent til sammenligning
+                    
+                    for i, filter_type in enumerate(filter_types):
+                        try:
+                            # Proces med hver filter type
+                            filter_processed = enhanced_processor.process_waveform_with_filtering(
+                                waveform_data_with_arrivals,
+                                filter_type=filter_type,
+                                remove_spikes=False,  # Undgå spike removal for sammenligning
+                                calculate_noise=False
+                            )
+                            
+                            if filter_processed:
+                                filtered_signal = filter_processed['filtered_data'][component]
+                                
+                                all_filters_fig.add_trace(go.Scatter(
+                                    x=times, y=filtered_signal,
+                                    mode='lines', 
+                                    name=filter_names[filter_type],
+                                    line=dict(color=colors[i], width=2 if filter_type == 'surface' else 1),
+                                    opacity=0.8
+                                ))
+                        except Exception as e:
+                            continue  # Spring over hvis filter fejler
+                    
+                    # Tilføj arrival times
+                    for arrival_time, phase, color in arrivals:
+                        if arrival_time is not None:
+                            all_filters_fig.add_vline(
+                                x=arrival_time, 
+                                line=dict(color=color, width=2, dash='dash'),
+                                annotation_text=phase
+                            )
+                    
+                    all_filters_fig.update_layout(
+                        title="Sammenligning af Alle Filter Typer (Vertikal komponent)",
+                        xaxis_title="Tid (s)",
+                        yaxis_title="Forskydning (mm)",
+                        height=500,
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(all_filters_fig, use_container_width=True)
+                    
+                    st.info("""
+                    **Filter sammenligning:**
+                    - **Original (grå):** Kun response removal
+                    - **Bredband (blå):** Standard filter til generel analyse
+                    - **P-bølger (rød):** Fremhæver høj-frekvens signaler
+                    - **S-bølger (grøn):** Medium frekvens forskydningsbølger
+                    - **Overfladebølger (orange, tyk):** Lav-frekvens, optimal til Ms
+                    """)
+                
+                # FFT spektrum analyse
+                if show_fft_plot:
+                    st.markdown("#### Frekvensanalyse (FFT)")
+                    
+                    surface_arrival = selected_station.get('surface_arrival')
+                    if surface_arrival:
+                        # FFT på dominerende horizontale komponent
+                        max_north = np.max(np.abs(filtered_data['north']))
+                        max_east = np.max(np.abs(filtered_data['east']))
+                        dominant_horizontal = filtered_data['north'] if max_north > max_east else filtered_data['east']
+                        
+                        periods, fft_amplitudes, peak_period, peak_amplitude = enhanced_processor.calculate_surface_wave_fft(
+                            dominant_horizontal, sampling_rate, surface_arrival
+                        )
+                        
+                        if periods is not None:
+                            fft_fig = go.Figure()
+                            fft_fig.add_trace(go.Scatter(
+                                x=periods, y=fft_amplitudes,
+                                mode='lines', name='FFT Spektrum',
+                                line=dict(color='purple', width=2)
+                            ))
+                            
+                            if peak_period and peak_amplitude:
+                                fft_fig.add_trace(go.Scatter(
+                                    x=[peak_period], y=[peak_amplitude],
+                                    mode='markers', name=f'Peak: {peak_period:.1f}s',
+                                    marker=dict(color='red', size=12, symbol='star')
+                                ))
+                            
+                            fft_fig.update_layout(
+                                title="FFT Spektrum - Overfladebølger",
+                                xaxis_title="Periode (sekunder)",
+                                yaxis_title="FFT Amplitude",
+                                xaxis_type="log",
+                                height=400
+                            )
+                            
+                            st.plotly_chart(fft_fig, use_container_width=True)
+                            
+                            if peak_period:
+                                if abs(peak_period - 20.0) < 5.0:
+                                    st.success(f"✅ Peak periode ({peak_period:.1f}s) er optimal for Ms beregning (~20s)")
+                                else:
+                                    st.warning(f"⚠️ Peak periode ({peak_period:.1f}s) afviger fra optimal 20s")
+                
+                # P-bølge detaljeret analyse
+                if show_p_analysis:
+                    st.markdown("####  P-bølge - Detaljeret Analyse")
+                    
+                    p_fig, peak_info = enhanced_processor.create_p_wave_zoom_plot(
+                        waveform_data, selected_station, processed_data
+                    )
+                    
+                    if p_fig and peak_info:
+                        st.plotly_chart(p_fig, use_container_width=True)
+                        
+                        # Detektion resultater
+                        col1, col2, col3 = st.columns(3)
+                        for i, peak in enumerate(peak_info):
+                            with [col1, col2, col3][i % 3]:
+                                st.metric(
+                                    f"{peak['component'].capitalize()}",
+                                    f"{peak['time']:.1f}s",
+                                    delta=f"{peak['delay']:+.1f}s"
+                                )
+                                st.caption(f"STA/LTA: {peak['sta_lta']:.1f}")
+                
+                # SNR plot
+                if show_snr_plot and 'snr_data' in processed_data:
+                    st.markdown("#### Signal-to-Noise Ratio")
+                    
+                    snr_fig = go.Figure()
+                    
+                    for component, snr_info in processed_data['snr_data'].items():
+                        snr_fig.add_trace(go.Scatter(
+                            x=snr_info['times'], y=snr_info['snr_db'],
+                            mode='lines', name=f'SNR {component.capitalize()}',
+                            line=dict(width=2)
+                        ))
+                    
+                    # Tilføj SNR kvalitets guidelines
+                    snr_fig.add_hline(y=20, line_dash="dash", line_color="green", 
+                                    annotation_text="Fremragende kvalitet (>20 dB)")
+                    snr_fig.add_hline(y=10, line_dash="dash", line_color="orange", 
+                                    annotation_text="God kvalitet (>10 dB)")
+                    
+                    snr_fig.update_layout(
+                        title="Signal-to-Noise Ratio over tid",
+                        xaxis_title="Tid (s)",
+                        yaxis_title="SNR (dB)",
+                        height=400
+                    )
+                    
+                    st.plotly_chart(snr_fig, use_container_width=True)
+                
+                # Rådata visning
+                if show_raw_data:
+                    st.markdown("####  Rådata (Instrument Counts)")
+                    
+                    raw_fig = go.Figure()
+                    raw_data = waveform_data['raw_data']
+                    
+                    raw_fig.add_trace(go.Scatter(x=times, y=raw_data['north'], 
+                                            mode='lines', name='North (raw)', 
+                                            line=dict(color='red', width=1)))
+                    raw_fig.add_trace(go.Scatter(x=times, y=raw_data['east'], 
+                                            mode='lines', name='East (raw)', 
+                                            line=dict(color='green', width=1)))
+                    raw_fig.add_trace(go.Scatter(x=times, y=raw_data['vertical'], 
+                                            mode='lines', name='Vertical (raw)', 
+                                            line=dict(color='blue', width=1)))
+                    
+                    raw_fig.update_layout(
+                        title="Rådata fra seismometer (instrument counts)",
+                        xaxis_title="Tid (s)",
+                        yaxis_title="Counts",
+                        height=400
+                    )
+                    
+                    st.plotly_chart(raw_fig, use_container_width=True)
+                    
+                    st.info("ℹ️ Rådata viser direkte output fra seismometer før kalibrering til fysiske enheder")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # ==========================================
+        # TAB 3: EXPORT & INFO
+        # ==========================================
+        with tab3:
+            st.markdown('<div class="tab-content">', unsafe_allow_html=True)
+            
+            # Excel Export sektion
+            st.markdown("### Data Export")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown("""
+                **Hvad inkluderes i Excel filen:**
+                - 📊 Komplet metadata (jordskælv, station, afstande)
+                - 📈 Tidsserier data (både rådata og displacement)
+                - 📏 Ms magnitude beregning og resultater
+                - ⏱️ Timing information og validering
+                - 🔧 Processing parametre og kvalitetsmål
+                """)
+                
+            with col2:
+                # Export knap med current settings
+                export_filter = st.selectbox(
+                    "Export med filter:",
+                    options=['raw', 'broadband', 'surface'],
+                    format_func=lambda x: {'raw': 'Original data', 'broadband': 'Bredband', 'surface': 'Overfladebølger'}[x],
+                    index=1
+                )
+                
+                if st.button("📊 Generer Excel Fil", type="primary", use_container_width=True):
+                    try:
+                        # Generer processeret data til export
+                        export_processed = enhanced_processor.process_waveform_with_filtering(
+                            waveform_data_with_arrivals, 
+                            filter_type=export_filter,
+                            remove_spikes=True
+                        )
+                        
+                        if export_processed:
+                            # Beregn Ms med export data
+                            export_ms, export_explanation = enhanced_processor.calculate_ms_magnitude(
+                                export_processed['filtered_data']['north'], 
+                                export_processed['filtered_data']['east'], 
+                                export_processed['filtered_data']['vertical'],
+                                selected_station['distance_km'], 
+                                sampling_rate
+                            )
+                            
+                            # Forbered export data
+                            export_waveform = waveform_data.copy()
+                            export_waveform['displacement_data'] = export_processed['filtered_data']
+                            
+                            with st.spinner("📊 Genererer Excel fil..."):
+                                excel_data = self.data_manager.export_to_excel(
+                                    selected_eq, selected_station, export_waveform, 
+                                    export_ms, export_explanation
+                                )
+                                
+                                if excel_data:
+                                    filter_suffix = "" if export_filter == 'raw' else f"_{export_filter}"
+                                    filename = f"seismic_analysis_{selected_station['network']}_{selected_station['station']}_{selected_eq['time'].strftime('%Y%m%d')}{filter_suffix}.xlsx"
+                                    
+                                    st.download_button(
+                                        label="⬇️ Download Excel Fil",
+                                        data=excel_data,
+                                        file_name=filename,
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    )
+                                    
+                                    st.success(f"✅ Excel fil klar til download!")
+                                else:
+                                    st.error("❌ Kunne ikke generere Excel fil")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Export fejl: {str(e)}")
+            
+            st.markdown("---")
+            
+            # Data kvalitet og information
+            st.markdown("### ℹ️ Data Information")
+            
+            # Station og jordskælv info
+            info_col1, info_col2 = st.columns(2)
+            
+            with info_col1:
+                st.markdown("**🌍 Jordskælv Information:**")
+                st.info(f"""
+                **Magnitude:** {selected_eq['magnitude']:.1f}
+                **Koordinater:** {selected_eq['latitude']:.2f}°N, {selected_eq['longitude']:.2f}°E  
+                **Dybde:** {selected_eq['depth_km']:.1f} km
+                **Tidspunkt:** {selected_eq['time'].strftime('%Y-%m-%d %H:%M:%S')} UTC
+                """)
+                
+            with info_col2:
+                st.markdown("**📡 Station Information:**")
+                st.info(f"""
+                **Station:** {selected_station['network']}.{selected_station['station']}
+                **Afstand:** {selected_station['distance_km']:.0f} km ({selected_station['distance_deg']:.1f}°)
+                **Komponenter:** {', '.join(waveform_data.get('available_components', []))}
+                **Sampling rate:** {waveform_data.get('sampling_rate', 'N/A')} Hz
+                """)
+            
+            # Ankomsttider tabel
+            st.markdown("**⏱️ Teoretiske Ankomsttider:**")
+            arrivals_df = pd.DataFrame({
+                'Bølgetype': ['P-bølge', 'S-bølge', 'Overfladebølge'],
+                'Ankomsttid (s)': [
+                    f"{selected_station.get('p_arrival', 0):.1f}",
+                    f"{selected_station.get('s_arrival', 0):.1f}", 
+                    f"{selected_station.get('surface_arrival', 0):.1f}"
+                ],
+                'Hastighed (km/s)': ['~8.0', '~4.5', '~3.5']
+            })
+            st.dataframe(arrivals_df, use_container_width=True)
+            
+            # Brugerguide
+            with st.expander("📚 Om Graferne"):
+                st.markdown("""
+                ### Forstå graferne
+                **Komponenter:**
+                - **North (N):** Bevægelse i nord-syd retning
+                - **East (E):** Bevægelse i øst-vest retning  
+                - **Vertical (Z):** Op-ned bevægelse
+                
+                **Bølgetyper:**
+                - **P-bølger:** Først ankommende, kompression/udvidelse
+                - **S-bølger:** Anden ankomst, forskydning
+                - **Overfladebølger:** Kraftigste, brugt til Ms magnitude
+                
+                ###Filter Typer
+                - **Original:** Kun omdannelse til forskydning  (anbefales til begyndere)
+                - **Bredband:** Standard filter der fjerner mest støj
+                - **Overfladebølger:** Optimal til Ms magnitude beregning
+                - **P/S-bølger:** Isolerer specifikke bølgetyper
+                
+                ###Ms Magnitude
+                Ms beregnes fra overfladebølger og er mest pålidelig for jordskælv M > 6.0
+                på afstande 20-160 grader. Formlen bruger maksimum amplitude og afstand.
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+       
+#=======================
+# Analaysedel slut
+#=======================    
     def run(self):
-        """
-        Kører hovedapplikation med komplet workflow.
-        
-        Koordinerer hele applikations flow:
-        1. Vis hovedinterface med kort og kontroller
-        2. Håndter bruger interaktioner
-        3. Vis analyse vindue når data er klar
-        
-        Dette er entry point for hele applikationen.
-        """
-        if st.session_state.data_loaded:
-            self.create_main_interface()
+            """
+            Kører hovedapplikation med komplet workflow.
             
-            # Vis analyse vindue hvis data er klar
-            if st.session_state.get('show_analysis', False):
-                self.create_enhanced_analysis_window()
+            Koordinerer hele applikations flow:
+            1. Vis hovedinterface med kort og kontroller
+            2. Håndter bruger interaktioner
+            3. Vis analyse vindue når data er klar
+            
+            Dette er entry point for hele applikationen.
+            """
+            if st.session_state.data_loaded:
+                self.create_main_interface()
+                
+                # Vis analyse vindue hvis data er klar
+                if st.session_state.get('show_analysis', False):
+                    self.create_enhanced_analysis_window()
+                    st.markdown("---")  # Separator
+                    self.create_useful_info_window()
 
 
 # =============================================================================
@@ -3596,4 +4626,3 @@ if __name__ == "__main__":
         st.info("- Genindlæse siden...")
         st.info("- Kontrollere ObsPy installation")
         st.info("- Rapportere fejlen hvis problemet fortsætter")
-
