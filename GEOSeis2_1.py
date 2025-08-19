@@ -20,8 +20,6 @@ import xlsxwriter
 from waveform_visualizer import WaveformVisualizer
 import folium.plugins
 from scipy.fft import fft, fftfreq
-import streamlit.components.v1 as components
-    
 
 # ==========================================
 # TILFØJ: Import af egne moduler
@@ -231,9 +229,7 @@ class GEOSeisV2:
             st.session_state.session_initialized = True
             st.session_state.last_station_key = None
             print("🎯 Session tracking initialized")
-                
-   
-    
+
    
     def load_modern_css(self):
             """Load modern CSS styling - uden emojis og afdæmpet"""
@@ -865,8 +861,7 @@ class GEOSeisV2:
                         disabled=not has_waveform):
                 st.session_state.current_view = 'tools_export'
                 
-            if st.button("GEOepicenter", use_container_width=True):
-                redirect_to_epicenter()
+            st.link_button("Åbn GEOepicenter", 'https://geovidenskab.github.io/epicenter/', use_container_width=True)
                     
             
             # Hjælp sektion
@@ -955,17 +950,12 @@ class GEOSeisV2:
         # Jordskælv
         if st.session_state.get('selected_earthquake'):
             eq = st.session_state.selected_earthquake
-            # Format datoen først
-            formatted_date = format_earthquake_time(eq.get('time'), '%d/%m/%Y')
-            
-            # Brug så den formatterede dato i f-stringen
-            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Earthquake: M{eq["magnitude"]:.1f}, Date: {formatted_date}, Depth: {eq["depth"]:.0f} km</span>')
-            
+            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Earthquake: M{eq["magnitude"]:.1f}, Date: {format_earthquake_time(eq.get('time'), '%d/%m/%Y')}, Depth: {eq["depth"]:.0f} km</span>')
+        
         # Station
         if st.session_state.get('selected_station'):
             station = st.session_state.selected_station
-            
-            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station["distance_km"]:.0f} km </span>')
+            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station['distance_km']:.0f} km </span>')
         
         # Breadcrumb HTML
         breadcrumb_html = ' <span style="color: #dee2e6; font-size: 0.7rem;">›</span> '.join(elements)
