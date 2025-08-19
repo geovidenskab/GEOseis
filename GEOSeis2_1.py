@@ -862,8 +862,7 @@ class GEOSeisV2:
                 st.session_state.current_view = 'tools_export'
                 
             if st.button("Triangulering", use_container_width=True):
-                st.write("🔗 [Åbn Triangulering](http://localhost:8000/triangulation.html)")
-                #webbrowser.open('triangulation.html')
+                webbrowser.open('https://geovidenskab.github.io/epicenter/')
             
             # Hjælp sektion
             help_views = ['theory_guide', 'about']
