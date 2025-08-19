@@ -960,7 +960,8 @@ class GEOSeisV2:
         # Station
         if st.session_state.get('selected_station'):
             station = st.session_state.selected_station
-            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station['distance_km']:.0f} km </span>')
+            
+            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station["distance_km"]:.0f} km </span>')
         
         # Breadcrumb HTML
         breadcrumb_html = ' <span style="color: #dee2e6; font-size: 0.7rem;">›</span> '.join(elements)
