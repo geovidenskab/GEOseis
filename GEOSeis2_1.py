@@ -232,13 +232,7 @@ class GEOSeisV2:
             st.session_state.last_station_key = None
             print("🎯 Session tracking initialized")
                 
-    def redirect_to_epicenter():
-        js_redirect = """
-        <script>
-            window.open('https://geovidenskab.github.io/epicenter/', '_blank');
-        </script>
-        """
-        components.html(js_redirect, height=0)
+   
     
    
     def load_modern_css(self):
