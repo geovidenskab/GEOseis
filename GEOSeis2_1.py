@@ -950,12 +950,14 @@ class GEOSeisV2:
         # Jordskælv
         if st.session_state.get('selected_earthquake'):
             eq = st.session_state.selected_earthquake
-            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Earthquake: M{eq["magnitude"]:.1f}, Date: {format_earthquake_time(eq.get('time'), '%d/%m/%Y')}, Depth: {eq["depth"]:.0f} km</span>')
-        
+            if eq:
+                formatted_date = format_earthquake_time(eq.get('time'), '%d/%m/%Y')
+                elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Earthquake: M{eq["magnitude"]:.1f}, Date: {formatted_date}, Depth: {eq["depth"]:.0f} km</span>')
+                    
         # Station
         if st.session_state.get('selected_station'):
             station = st.session_state.selected_station
-            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station['distance_km']:.0f} km </span>')
+            elements.append(f'<span style="color: #6c757d; font-size: 0.8rem;"> -> Station: {station["network"]}.{station["station"]}, Distance: {station["distance_km"]:.0f} km </span>')
         
         # Breadcrumb HTML
         breadcrumb_html = ' <span style="color: #dee2e6; font-size: 0.7rem;">›</span> '.join(elements)
