@@ -710,6 +710,26 @@ class GEOSeisV2:
                 background: rgba(0,0,0,0.7) !important;
                 border-radius: 4px !important;
             }
+            
+            /* Fjern Streamlit header og toolbar */
+                header[data-testid="stHeader"] {
+                    display: none !important;
+                }
+
+                .stAppToolbar {
+                    display: none !important;
+                }
+
+                .main .block-container {
+                    padding-top: 1rem !important;
+                }
+
+                [data-testid="stToolbar"] {
+                    display: none !important;
+                }
+
+                #MainMenu {visibility: hidden;}
+                footer {visibility: hidden;}
             </style>
             """, unsafe_allow_html=True)
 
