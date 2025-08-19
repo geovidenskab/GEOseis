@@ -20,6 +20,8 @@ import xlsxwriter
 from waveform_visualizer import WaveformVisualizer
 import folium.plugins
 from scipy.fft import fft, fftfreq
+import streamlit.components.v1 as components
+    
 
 # ==========================================
 # TILFØJ: Import af egne moduler
@@ -229,7 +231,15 @@ class GEOSeisV2:
             st.session_state.session_initialized = True
             st.session_state.last_station_key = None
             print("🎯 Session tracking initialized")
-
+                
+    def redirect_to_epicenter():
+        js_redirect = """
+        <script>
+            window.open('https://geovidenskab.github.io/epicenter/', '_blank');
+        </script>
+        """
+        components.html(js_redirect, height=0)
+    
    
     def load_modern_css(self):
             """Load modern CSS styling - uden emojis og afdæmpet"""
@@ -861,8 +871,9 @@ class GEOSeisV2:
                         disabled=not has_waveform):
                 st.session_state.current_view = 'tools_export'
                 
-            if st.button("Triangulering", use_container_width=True):
-                webbrowser.open('https://geovidenskab.github.io/epicenter/')
+            if st.button("GEOepicenter", use_container_width=True):
+                redirect_to_epicenter()
+                    
             
             # Hjælp sektion
             help_views = ['theory_guide', 'about']
